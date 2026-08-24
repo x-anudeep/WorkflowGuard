@@ -3,17 +3,21 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from workflow_core.canonical.models import SourceType, Workflow
 from workflow_core.comparison import VersionComparisonEngine
 from workflow_core.costing import CostEstimator, CostScenario, PricingEntry
 from workflow_core.parsers.errors import WorkflowParseError
+from workflow_core.quality import QualityGateConfig
 from workflow_core.testing import WorkflowTest
 from workflow_core.validation import ValidationEngine
 
 from workflowguard_api.db.session import get_db
-from workflowguard_api.models.db import ValidationRun, WorkflowRecord
+from workflowguard_api.models.db import AuditEventRecord, QualityGateRunRecord, ValidationRun, WorkflowRecord
 from workflowguard_api.schemas.workflows import (
+    AuditEventRead,
     DashboardMetrics,
     DimensionScoreRead,
     EvaluationFindingRead,
@@ -27,6 +31,8 @@ from workflowguard_api.schemas.workflows import (
     OptimizationFindingRead,
     PricingEntryCreate,
     PricingEntryRead,
+    QualityGateConfigRead,
+    QualityGateRunRead,
     RepairDecisionRequest,
     RepairGenerateRequest,
     RepairProposalRead,
@@ -44,8 +50,12 @@ from workflowguard_api.schemas.workflows import (
     WorkflowVersionRead,
     VersionCompareRead,
 )
+from workflowguard_api.services.audit import AuditService
 from workflowguard_api.services.costs import CostService
 from workflowguard_api.services.evaluations import EvaluationNotFoundError, EvaluationService
+from workflowguard_api.services.platform import PlatformMetricsService
+from workflowguard_api.services.quality import QualityGateService
+from workflowguard_api.services.reports import ReportService
 from workflowguard_api.services.repairs import RepairProposalNotFoundError, RepairService
 from workflowguard_api.services.testing import (
     WorkflowTestNotFoundError,
@@ -62,30 +72,51 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/ready")
+def ready(db: Session = Depends(get_db)) -> dict[str, str]:
+    db.execute(text("select 1"))
+    return {"status": "ready"}
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+def metrics(db: Session = Depends(get_db)) -> str:
+    data = PlatformMetricsService(db).dashboard()
+    return "\n".join(
+        [
+            "# HELP workflowguard_workflows_total Total workflows.",
+            "# TYPE workflowguard_workflows_total gauge",
+            f"workflowguard_workflows_total {data['total_workflows']}",
+            "# HELP workflowguard_validation_runs_total Total validation runs.",
+            "# TYPE workflowguard_validation_runs_total gauge",
+            f"workflowguard_validation_runs_total {data['total_validation_runs']}",
+            "# HELP workflowguard_quality_score_average Average quality gate score.",
+            "# TYPE workflowguard_quality_score_average gauge",
+            f"workflowguard_quality_score_average {data['average_quality_score']}",
+        ]
+    )
+
+
 @router.get("/dashboard", response_model=DashboardMetrics)
 def dashboard(db: Session = Depends(get_db)) -> DashboardMetrics:
-    service = WorkflowService(db)
-    evaluation_service = EvaluationService(db)
-    testing_service = WorkflowTestingService(db)
-    cost_service = CostService(db)
-    repair_service = RepairService(db)
-    metrics = service.dashboard_metrics()
-    evaluation_metrics = evaluation_service.dashboard_metrics()
-    testing_metrics = testing_service.dashboard_metrics()
-    cost_metrics = cost_service.dashboard_metrics()
-    repair_metrics = repair_service.dashboard_metrics()
+    metrics = PlatformMetricsService(db).dashboard()
     return DashboardMetrics(
         total_workflows=metrics["total_workflows"],
+        total_workflow_versions=metrics["total_workflow_versions"],
         total_validation_runs=metrics["total_validation_runs"],
         average_structural_score=metrics["average_structural_score"],
         critical_issues=metrics["critical_issues"],
-        total_evaluation_runs=evaluation_metrics["total_evaluation_runs"],
-        average_overall_score=evaluation_metrics["average_overall_score"],
-        total_workflow_tests=testing_metrics["total_workflow_tests"],
-        latest_test_coverage=testing_metrics["latest_test_coverage"],
-        failing_test_runs=testing_metrics["failing_test_runs"],
-        latest_monthly_cost=cost_metrics["latest_monthly_cost"],
-        open_repair_proposals=repair_metrics["open_repair_proposals"],
+        total_evaluation_runs=metrics["total_evaluation_runs"],
+        average_overall_score=metrics["average_overall_score"],
+        average_quality_score=metrics["average_quality_score"],
+        total_workflow_tests=metrics["total_workflow_tests"],
+        test_pass_rate=metrics["test_pass_rate"],
+        average_coverage=metrics["average_coverage"],
+        latest_test_coverage=metrics["latest_test_coverage"],
+        failing_test_runs=metrics["failing_test_runs"],
+        latest_monthly_cost=metrics["latest_monthly_cost"],
+        potential_cost_savings=metrics["potential_cost_savings"],
+        open_repair_proposals=metrics["open_repair_proposals"],
+        charts=metrics["charts"],
         recent_workflows=[_summary(record) for record in metrics["recent_workflows"]],
     )
 
@@ -99,6 +130,7 @@ def create_workflow(payload: WorkflowCreate, db: Session = Depends(get_db)) -> W
         workflow.source_type = payload.source_type
         workflow.source_prompt = payload.source_prompt
         record, _run = WorkflowService(db).create_from_canonical(workflow)
+        AuditService(db).record("uploaded", "Workflow created from canonical JSON.", workflow_id=record.id, version_id=record.current_version_id)
         return _detail(WorkflowService(db).get_workflow(record.id))
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -120,14 +152,47 @@ async def upload_workflow(
             source_prompt=source_prompt,
             content_type=file.content_type,
         )
+        AuditService(db).record(
+            "uploaded",
+            f"Uploaded {file.filename or 'workflow'}.",
+            workflow_id=record.id,
+            version_id=record.current_version_id,
+            metadata={"content_type": file.content_type, "source_type": str(source_type)},
+        )
         return _detail(record)
     except WorkflowParseError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get("/workflows", response_model=list[WorkflowSummary])
-def list_workflows(db: Session = Depends(get_db)) -> list[WorkflowSummary]:
-    return [_summary(record) for record in WorkflowService(db).list_workflows()]
+def list_workflows(
+    q: str | None = Query(None),
+    source_format: str | None = Query(None),
+    source_type: str | None = Query(None),
+    min_score: float | None = Query(None),
+    has_critical: bool | None = Query(None),
+    db: Session = Depends(get_db),
+) -> list[WorkflowSummary]:
+    records = WorkflowService(db).list_workflows()
+    if q:
+        q_lower = q.lower()
+        records = [
+            record
+            for record in records
+            if q_lower in record.name.lower()
+            or q_lower in (record.source_prompt or "").lower()
+            or q_lower in str(record.metadata_json).lower()
+        ]
+    summaries = [_summary(record) for record in records]
+    if source_format:
+        summaries = [item for item in summaries if item.source_format == source_format]
+    if source_type:
+        summaries = [item for item in summaries if item.source_type == source_type]
+    if min_score is not None:
+        summaries = [item for item in summaries if (item.structural_quality_score or 0) >= min_score]
+    if has_critical is not None:
+        summaries = [item for item in summaries if (item.critical_findings > 0) is has_critical]
+    return summaries
 
 
 @router.get("/workflows/{workflow_id}", response_model=WorkflowDetail)
@@ -153,7 +218,9 @@ def versions(workflow_id: UUID, db: Session = Depends(get_db)) -> list[WorkflowV
 @router.post("/workflows/{workflow_id}/validate", response_model=ValidationRunRead)
 def validate(workflow_id: UUID, db: Session = Depends(get_db)) -> ValidationRunRead:
     try:
-        return _validation_run(WorkflowService(db).validate(workflow_id))
+        run = WorkflowService(db).validate(workflow_id)
+        AuditService(db).record("validated", "Static validation completed.", workflow_id=workflow_id, version_id=run.version_id)
+        return _validation_run(run)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
 
@@ -193,6 +260,7 @@ def evaluate_workflow(
 ) -> EvaluationRunRead:
     try:
         run = EvaluationService(db).evaluate(workflow_id, use_ai=payload.use_ai if payload else True)
+        AuditService(db).record("evaluated", "Semantic workflow evaluation completed.", workflow_id=workflow_id, version_id=run.version_id)
         return _evaluation_run(run)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
@@ -237,6 +305,7 @@ def generate_tests(
             use_ai=payload.use_ai if payload else True,
             replace_existing=payload.replace_existing if payload else False,
         )
+        AuditService(db).record("tests_generated", f"Generated {len(records)} workflow tests.", workflow_id=workflow_id)
         return GenerateTestsResponse(
             generated=len(records),
             tests=[_workflow_test(record) for record in records],
@@ -251,7 +320,9 @@ def generate_tests(
 def create_test(workflow_id: UUID, payload: WorkflowTestCreate, db: Session = Depends(get_db)) -> WorkflowTestRead:
     try:
         test = WorkflowTest.model_validate(payload.model_dump())
-        return _workflow_test(WorkflowTestingService(db).create_test(workflow_id, test))
+        record = WorkflowTestingService(db).create_test(workflow_id, test)
+        AuditService(db).record("test_created", f"Created test {record.name}.", workflow_id=workflow_id, version_id=record.version_id)
+        return _workflow_test(record)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
     except Exception as exc:
@@ -274,6 +345,7 @@ def run_workflow_tests(
 ) -> TestRunSummary:
     try:
         runs = WorkflowTestingService(db).run_tests(workflow_id, payload.test_ids if payload else None)
+        AuditService(db).record("tests_executed", f"Executed {len(runs)} workflow tests.", workflow_id=workflow_id)
         return _test_run_summary(WorkflowTestingService(db).list_tests(workflow_id), runs)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
@@ -325,7 +397,9 @@ def estimate_cost(
 ) -> CostEstimateRead:
     try:
         scenario = CostScenario.model_validate(payload.model_dump()) if payload else CostScenario()
-        return _cost_estimate(CostService(db).estimate(workflow_id, scenario))
+        estimate = CostService(db).estimate(workflow_id, scenario)
+        AuditService(db).record("cost_estimated", "Workflow cost scenario estimated.", workflow_id=workflow_id, version_id=estimate.version_id)
+        return _cost_estimate(estimate)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
     except Exception as exc:
@@ -382,13 +456,13 @@ def generate_repair(
     db: Session = Depends(get_db),
 ) -> RepairProposalRead:
     try:
-        return _repair(
-            RepairService(db).generate(
-                workflow_id,
-                payload.finding if payload else None,
-                use_ai=payload.use_ai if payload else True,
-            )
+        proposal = RepairService(db).generate(
+            workflow_id,
+            payload.finding if payload else None,
+            use_ai=payload.use_ai if payload else True,
         )
+        AuditService(db).record("repair_proposed", "Repair proposal generated.", workflow_id=workflow_id, version_id=proposal.version_id)
+        return _repair(proposal)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
     except Exception as exc:
@@ -406,7 +480,15 @@ def list_repairs(workflow_id: UUID, db: Session = Depends(get_db)) -> list[Repai
 @router.post("/repairs/{proposal_id}/accept", response_model=RepairProposalRead)
 def accept_repair(proposal_id: UUID, db: Session = Depends(get_db)) -> RepairProposalRead:
     try:
-        return _repair(RepairService(db).accept(proposal_id))
+        proposal = RepairService(db).accept(proposal_id)
+        AuditService(db).record(
+            "repair_accepted",
+            "Repair proposal accepted and a new workflow version was created.",
+            workflow_id=proposal.workflow_id,
+            version_id=proposal.accepted_version_id,
+            metadata={"proposal_id": str(proposal.id)},
+        )
+        return _repair(proposal)
     except RepairProposalNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repair proposal not found") from exc
 
@@ -418,9 +500,66 @@ def reject_repair(
     db: Session = Depends(get_db),
 ) -> RepairProposalRead:
     try:
-        return _repair(RepairService(db).reject(proposal_id, payload.reason if payload else None))
+        proposal = RepairService(db).reject(proposal_id, payload.reason if payload else None)
+        AuditService(db).record(
+            "repair_rejected",
+            "Repair proposal rejected.",
+            workflow_id=proposal.workflow_id,
+            version_id=proposal.version_id,
+            metadata={"proposal_id": str(proposal.id), "reason": payload.reason if payload else None},
+        )
+        return _repair(proposal)
     except RepairProposalNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repair proposal not found") from exc
+
+
+@router.post("/workflows/{workflow_id}/quality-gate", response_model=QualityGateRunRead)
+def check_quality_gate(
+    workflow_id: UUID,
+    payload: QualityGateConfigRead | None = None,
+    db: Session = Depends(get_db),
+) -> QualityGateRunRead:
+    try:
+        config = QualityGateConfig.model_validate(payload.model_dump()) if payload else None
+        run = QualityGateService(db).check(workflow_id, config)
+        AuditService(db).record("quality_gate_checked", f"Quality gate {run.status}.", workflow_id=workflow_id, version_id=run.version_id)
+        return _quality_gate_run(run)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/quality-gate", response_model=QualityGateRunRead)
+def latest_quality_gate(workflow_id: UUID, db: Session = Depends(get_db)) -> QualityGateRunRead:
+    try:
+        return _quality_gate_run(QualityGateService(db).latest(workflow_id))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/history", response_model=list[AuditEventRead])
+def workflow_history(workflow_id: UUID, db: Session = Depends(get_db)) -> list[AuditEventRead]:
+    try:
+        WorkflowService(db).get_workflow(workflow_id)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    return [_audit_event(event) for event in AuditService(db).list_for_workflow(workflow_id)]
+
+
+@router.get("/workflows/{workflow_id}/report")
+def workflow_report(
+    workflow_id: UUID,
+    format: str = Query("json", pattern="^(json|markdown|html)$"),
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ReportService(db)
+        if format == "markdown":
+            return PlainTextResponse(service.markdown(workflow_id), media_type="text/markdown")
+        if format == "html":
+            return HTMLResponse(service.html(workflow_id))
+        return service.build(workflow_id)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
 
 
 def _summary(record: WorkflowRecord) -> WorkflowSummary:
@@ -675,4 +814,32 @@ def _repair(record) -> RepairProposalRead:
         accepted_version_id=record.accepted_version_id,
         created_at=record.created_at,
         updated_at=record.updated_at,
+    )
+
+
+def _quality_gate_run(record: QualityGateRunRecord) -> QualityGateRunRead:
+    return QualityGateRunRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        status=record.status,
+        score=record.score,
+        config=record.config_json,
+        dimensions=record.dimensions_json,
+        reasons=record.reasons_json,
+        metadata=record.metadata_json,
+        created_at=record.created_at,
+    )
+
+
+def _audit_event(record: AuditEventRecord) -> AuditEventRead:
+    return AuditEventRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        event_type=record.event_type,
+        actor=record.actor,
+        message=record.message,
+        metadata=record.metadata_json,
+        created_at=record.created_at,
     )

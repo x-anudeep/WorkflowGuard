@@ -1,0 +1,14 @@
+{
+  "finding_id": "WG-ALIGN-APPROVAL",
+  "summary": "Add manual approval before SAP for high-value invoices and add SAP retry/timeout handling.",
+  "expected_patch_effect": {
+    "nodes_added": ["manual_approval", "sap_error"],
+    "edges_changed": ["amount_check high-value path now targets manual_approval before sap_save"],
+    "configuration_changed": ["sap_save.timeout_seconds", "sap_save.retry"]
+  },
+  "safety_notes": [
+    "Original workflow is preserved.",
+    "Accepted repair creates a new workflow version.",
+    "Prompt requirements are not removed."
+  ]
+}

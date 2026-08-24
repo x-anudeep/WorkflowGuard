@@ -128,17 +128,64 @@ export type EvaluationRun = {
 
 export type DashboardMetrics = {
   total_workflows: number;
+  total_workflow_versions: number;
   total_validation_runs: number;
   average_structural_score: number;
   critical_issues: number;
   total_evaluation_runs: number;
   average_overall_score: number;
+  average_quality_score: number;
   total_workflow_tests: number;
+  test_pass_rate: number;
+  average_coverage: number;
   latest_test_coverage: number;
   failing_test_runs: number;
   latest_monthly_cost: number;
+  potential_cost_savings: number;
   open_repair_proposals: number;
+  charts: {
+    quality_over_time?: Array<{ date: string; score: number }>;
+    cost_trend?: Array<{ date: string; monthly_cost: number }>;
+    test_pass_rate?: Array<{ date: string; pass_rate: number }>;
+    findings_by_severity?: Record<string, number>;
+    workflows_by_source?: Record<string, number>;
+    workflows_by_format?: Record<string, number>;
+    most_expensive_workflows?: Array<{ workflow_id: string; name: string; monthly_cost: number }>;
+  };
   recent_workflows: WorkflowSummary[];
+};
+
+export type AuditEvent = {
+  id: string;
+  workflow_id?: string | null;
+  version_id?: string | null;
+  event_type: string;
+  actor: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type QualityGateRun = {
+  id: string;
+  workflow_id: string;
+  version_id: string;
+  status: "PASS" | "FAIL";
+  score: number;
+  config: Record<string, unknown>;
+  dimensions: Record<string, number | null>;
+  reasons: Array<{
+    rule_id: string;
+    passed: boolean;
+    title: string;
+    message: string;
+    expected: string;
+    actual: string;
+    severity: string;
+    metadata: Record<string, unknown>;
+  }>;
+  metadata: Record<string, unknown>;
+  created_at: string;
 };
 
 export type WorkflowAssertion = {

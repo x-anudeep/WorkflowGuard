@@ -10,6 +10,8 @@ Part 3 turns WorkflowGuard into an automated workflow QA system: deterministic a
 
 Part 4 adds cost intelligence and controlled repair: configurable pricing, scenario forecasts, optimization recommendations, workflow version comparison, AI-assisted repair patch generation, sandbox preview, and accept/reject versioning.
 
+Part 5 completes the demo-quality platform shell: quality gates, global repository filtering, audit/history, report export, dashboard charts, request IDs, readiness/metrics endpoints, GitHub Actions integration, and the invoice-processing demo project.
+
 ## Architecture
 
 - `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, simulator, assertions, coverage, cost estimation, version comparison, repair patches, scoring, and CLI.
@@ -74,6 +76,8 @@ workflowguard validate examples/json/valid-workflow.json
 workflowguard evaluate examples/json/valid-workflow.json --prompt "Approve requests, then notify Slack."
 workflowguard test examples/json/valid-workflow.json --json
 workflowguard cost examples/json/valid-workflow.json --executions-day 500 --json
+workflowguard check examples/demo/broken-ai-invoice-workflow.json --prompt "$(cat examples/demo/invoice-requirement.md)" --json
+workflowguard report examples/demo/broken-ai-invoice-workflow.json --format markdown
 workflowguard compare examples/json/valid-workflow.json examples/json/orphan-node.json --json
 ```
 
@@ -218,7 +222,48 @@ Accepted repairs create a new workflow version and preserve the original workflo
 - `GET /api/workflows/{id}/repairs`
 - `POST /api/repairs/{proposal_id}/accept`
 - `POST /api/repairs/{proposal_id}/reject`
+- `POST /api/workflows/{id}/quality-gate`
+- `GET /api/workflows/{id}/quality-gate`
+- `GET /api/workflows/{id}/history`
+- `GET /api/workflows/{id}/report?format=json|markdown|html`
 - `GET /api/dashboard`
+- `GET /api/ready`
+- `GET /api/metrics`
+
+## Quality Gates and CI/CD
+
+Quality gates combine stored structural, prompt-alignment, security, reliability, maintainability, test coverage, critical test, critical security, and optional cost-increase signals. The default thresholds are intentionally strict for CI:
+
+- Structural score >= 90
+- Prompt alignment >= 90
+- Security >= 85
+- Reliability >= 80
+- Maintainability >= 70
+- Test coverage >= 85
+- No high/critical failed tests
+- No critical security findings
+- Monthly cost increase <= 20% when a before/after baseline is supplied
+
+The `workflowguard check` CLI command exits `0` on pass, `1` on gate failure, and `2` when parsing fails. `.github/workflows/workflowguard.yml` shows a PR workflow that detects changed workflow files, runs deterministic checks, and uploads JSON/Markdown reports. It does not require paid AI calls by default; AI-assisted extraction can be enabled through CI secrets.
+
+## Reports and Audit History
+
+Workflow reports are exportable as JSON, Markdown, or HTML. Reports include workflow/version metadata, original requirement, overall and dimension scores, validation findings, prompt alignment evidence, security/reliability findings, test results, coverage, cost estimates, optimization opportunities, and quality gate results.
+
+Audit events are persisted for upload, validation, evaluation, test generation, test execution, cost estimation, repair proposal/accept/reject, and quality gate checks. They are visible in Workflow Detail > History and available through the history API.
+
+## Demo
+
+The invoice demo lives under `examples/demo`:
+
+- `invoice-requirement.md`
+- `broken-ai-invoice-workflow.json`
+- `correct-invoice-workflow.json`
+- `cost-scenario.json`
+- `expected-findings.md`
+- `repair-example.json`
+
+Upload `broken-ai-invoice-workflow.json` as AI-generated and paste the requirement. WorkflowGuard should flag that the high-value invoice path bypasses manual approval before SAP, generate tests for the missing branch behavior, estimate cost, fail quality gates, and produce repair/cost/report artifacts.
 
 ## Environment Variables
 
@@ -241,10 +286,10 @@ Accepted repairs create a new workflow version and preserve the original workflo
 - Repair patches operate on canonical workflow versions; original uploaded source files are preserved but not rewritten.
 - Semantic evaluation is static and best-effort; it does not prove runtime correctness.
 - The deterministic requirement extractor is intentionally conservative and can miss nuanced requirements without an AI provider.
-- No production execution logging or observability ingestion yet.
+- Observability is limited to structured request logs, request IDs, health/readiness, and basic Prometheus-style metrics; it does not ingest live workflow runtime telemetry yet.
 - BPMN diagram rendering is not enabled in the UI yet, but BPMN metadata is preserved for adding `bpmn-js`.
 - Authentication and multi-user project isolation are intentionally deferred.
 
 ## Roadmap
 
-Part 5 should add production observability, execution/log ingestion, historical trend analysis, alerting, deeper dashboard reporting, and final hardening.
+Valuable next steps include authentication and project-level authorization, background job workers for long evaluations, deeper native BPMN rendering, richer workflow-engine adapters, live execution telemetry ingestion, configurable organization-level quality policies, and provider-backed repair benchmarking.

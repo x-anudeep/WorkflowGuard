@@ -1,0 +1,8 @@
+{
+  "name": "Invoice demo monthly forecast",
+  "executions_per_day": 5000,
+  "average_payload_kb": 18,
+  "average_input_tokens": 1500,
+  "average_output_tokens": 400,
+  "failure_retry_rate": 0.08
+}

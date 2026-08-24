@@ -11,6 +11,8 @@ from workflow_core.costing import CostEstimator, CostOptimizationEngine, CostSce
 from workflow_core.evaluation import SemanticEvaluationEngine
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.registry import default_parser_registry
+from workflow_core.quality import QualityGateEngine
+from workflow_core.reporting import render_markdown_report
 from workflow_core.testing import DeterministicTestGenerator, WorkflowTestRunner
 from workflow_core.validation.engine import ValidationEngine
 
@@ -18,7 +20,7 @@ from workflow_core.validation.engine import ValidationEngine
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="workflowguard", description="WorkflowGuard workflow QA CLI")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    for command in ("validate", "evaluate", "test", "cost"):
+    for command in ("validate", "evaluate", "test", "cost", "check", "report"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("file", type=Path)
         command_parser.add_argument("--prompt", default=None)
@@ -29,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
             command_parser.add_argument("--input-tokens", type=int, default=1000)
             command_parser.add_argument("--output-tokens", type=int, default=300)
             command_parser.add_argument("--retry-rate", type=float, default=0.05)
+        if command == "report":
+            command_parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     compare_parser = subcommands.add_parser("compare")
     compare_parser.add_argument("file_a", type=Path)
     compare_parser.add_argument("file_b", type=Path)
@@ -118,6 +122,60 @@ def main(argv: list[str] | None = None) -> int:
         "overall_coverage": coverage.overall_coverage if coverage else 0,
         "runs": [run.model_dump(mode="json") for run in runs],
     }
+    if args.command in {"check", "report"}:
+        evaluation = SemanticEvaluationEngine().evaluate(
+            workflow,
+            structural_score=round(validation.structural_quality_score),
+            validation_findings=validation.findings,
+        )
+        dimensions = {str(score.dimension): score.score for score in evaluation.dimension_scores}
+        estimate = CostEstimator().estimate(workflow)
+        quality_gate = QualityGateEngine().evaluate(
+            structural_score=validation.structural_quality_score,
+            prompt_alignment_score=dimensions.get("prompt_alignment"),
+            security_score=dimensions.get("security"),
+            reliability_score=dimensions.get("reliability"),
+            maintainability_score=dimensions.get("maintainability"),
+            test_coverage=coverage.overall_coverage if coverage else 0,
+            critical_test_failures=sum(1 for run in runs if run.status in {"FAILED", "ERROR"}),
+            critical_security_findings=sum(
+                1 for finding in evaluation.findings if str(finding.dimension) == "security" and str(finding.severity) == "CRITICAL"
+            ),
+        )
+        report = {
+            "workflow": {
+                "id": workflow.id,
+                "name": workflow.name,
+                "version_id": workflow.metadata.get("version_id"),
+                "source_format": str(workflow.source_format),
+                "source_type": str(workflow.source_type),
+            },
+            "scores": {
+                "overall": evaluation.overall_score,
+                "structural": validation.structural_quality_score,
+                "prompt_alignment": dimensions.get("prompt_alignment"),
+                "security": dimensions.get("security"),
+                "reliability": dimensions.get("reliability"),
+                "maintainability": dimensions.get("maintainability"),
+                "test_coverage": coverage.overall_coverage if coverage else 0,
+            },
+            "quality_gate": quality_gate.model_dump(mode="json"),
+            "validation_findings": [finding.model_dump(mode="json") for finding in validation.findings],
+            "evaluation_findings": [finding.model_dump(mode="json") for finding in evaluation.findings],
+            "tests": payload,
+            "cost": estimate.model_dump(mode="json"),
+            "optimization_findings": [
+                finding.model_dump(mode="json") for finding in CostOptimizationEngine().analyze(workflow, estimate)
+            ],
+        }
+        if args.command == "report":
+            if args.format == "json" or args.json:
+                print(json.dumps(report, indent=2))
+            else:
+                print(render_markdown_report(report), end="")
+            return 0
+        _emit(args.json, {"status": quality_gate.status, "quality_gate": quality_gate.model_dump(mode="json"), **payload})
+        return 0 if quality_gate.status == "PASS" else 1
     _emit(args.json, payload)
     return 1 if failed else 0
 

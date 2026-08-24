@@ -1,0 +1,49 @@
+{
+  "name": "Broken AI Invoice Processing Workflow",
+  "nodes": [
+    {
+      "id": "gmail_trigger",
+      "name": "New invoice email in Gmail",
+      "type": "trigger",
+      "provider": "gmail",
+      "operation": "new_email",
+      "configuration": { "label": "Invoices" }
+    },
+    {
+      "id": "extract_invoice",
+      "name": "Extract invoice fields",
+      "type": "action",
+      "subtype": "transform",
+      "operation": "extract_fields",
+      "configuration": { "fields": ["vendor", "amount", "due_date", "invoice_id"] }
+    },
+    {
+      "id": "amount_check",
+      "name": "Check amount",
+      "type": "condition",
+      "operation": "greater_than",
+      "configuration": { "left": "invoice.amount", "operator": ">", "right": 10000 }
+    },
+    {
+      "id": "sap_save",
+      "name": "Save invoice to SAP",
+      "type": "external_api",
+      "provider": "sap",
+      "operation": "create_invoice",
+      "configuration": { "endpoint": "https://sap.example.com/invoices", "method": "POST" }
+    },
+    {
+      "id": "end",
+      "name": "Done",
+      "type": "end",
+      "configuration": {}
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "gmail_trigger", "target": "extract_invoice" },
+    { "id": "e2", "source": "extract_invoice", "target": "amount_check" },
+    { "id": "e3", "source": "amount_check", "target": "sap_save", "condition": "invoice.amount > 10000", "label": "high amount bypasses approval" },
+    { "id": "e4", "source": "amount_check", "target": "sap_save", "condition": "invoice.amount <= 10000", "label": "normal amount" },
+    { "id": "e5", "source": "sap_save", "target": "end" }
+  ]
+}

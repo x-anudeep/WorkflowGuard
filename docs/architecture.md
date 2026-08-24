@@ -2,7 +2,33 @@
 
 ## Scope
 
-Part 1 established a production-oriented foundation for parsing, storing, validating, and visualizing workflow graphs. Part 2 added semantic evaluation and prompt alignment without changing the deterministic validation contract. Part 3 added automated workflow QA: test generation, safe simulation, assertions, failure injection, coverage, and persisted test history. Part 4 adds cost intelligence, version comparison, and controlled AI-assisted repair. It still does not implement production observability ingestion or alerting.
+Part 1 established a production-oriented foundation for parsing, storing, validating, and visualizing workflow graphs. Part 2 added semantic evaluation and prompt alignment without changing the deterministic validation contract. Part 3 added automated workflow QA: test generation, safe simulation, assertions, failure injection, coverage, and persisted test history. Part 4 added cost intelligence, version comparison, and controlled AI-assisted repair. Part 5 completes the product shell with quality gates, reports, audit history, CI/CD examples, observability endpoints, demo assets, and dashboard/repository polish.
+
+```mermaid
+flowchart TD
+  A[Human Requirement / Prompt] --> B[Human or AI Workflow]
+  B --> C[Workflow Ingestion]
+  C --> D[Format Parser]
+  D --> E[Canonical Workflow Graph]
+  E --> F[Static Validator]
+  E --> G[Prompt Alignment Engine]
+  E --> H[Semantic Evaluator]
+  E --> I[Reliability Analyzer]
+  E --> J[Security Analyzer]
+  E --> K[Test Generator]
+  K --> L[Workflow Simulator]
+  E --> M[Cost Intelligence]
+  E --> N[Optimization Engine]
+  H --> O[AI Repair Engine]
+  F --> P[Quality Gate]
+  G --> P
+  L --> P
+  M --> P
+  P --> Q[Dashboard / CLI / CI]
+  O --> R[Repair Candidate]
+  R --> F
+  R --> L
+```
 
 ## Monorepo Layout
 
@@ -135,12 +161,14 @@ PostgreSQL stores:
 - optimization findings
 - repair proposals
 - repair validation results
+- quality gate runs
+- audit events
 
 The schema leaves room for future tables such as execution logs, observability events, alerts, and deployment environments.
 
 ## API
 
-FastAPI exposes upload, list, detail, graph, validation, semantic evaluation, requirements, test generation, test creation, test execution, test history, pricing, cost estimation, version comparison, repair proposal/accept/reject, versions, dashboard, and health endpoints under `/api`. OpenAPI docs are generated automatically at `/docs`.
+FastAPI exposes upload, filtered list, detail, graph, validation, semantic evaluation, requirements, test generation, test creation, test execution, test history, pricing, cost estimation, version comparison, repair proposal/accept/reject, quality gates, history, reports, versions, dashboard, health, readiness, and metrics endpoints under `/api`. OpenAPI docs are generated automatically at `/docs`.
 
 ## Frontend
 

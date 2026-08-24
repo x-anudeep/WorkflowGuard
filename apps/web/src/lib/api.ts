@@ -2,6 +2,8 @@ import type {
   DashboardMetrics,
   CostEstimate,
   EvaluationRun,
+  AuditEvent,
+  QualityGateRun,
   RepairProposal,
   TestRunSummary,
   ValidationRun,
@@ -31,7 +33,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   dashboard: () => request<DashboardMetrics>("/dashboard"),
-  workflows: () => request<WorkflowSummary[]>("/workflows"),
+  workflows: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return request<WorkflowSummary[]>(`/workflows${query}`);
+  },
   workflow: (id: string) => request<WorkflowDetail>(`/workflows/${id}`),
   validation: (id: string) => request<ValidationRun | null>(`/workflows/${id}/validation`),
   evaluations: (id: string) => request<EvaluationRun[]>(`/workflows/${id}/evaluations`),
@@ -76,6 +81,15 @@ export const api = {
     }),
   compareVersions: (id: string) => request<VersionComparison>(`/workflows/${id}/versions/compare`),
   repairs: (id: string) => request<RepairProposal[]>(`/workflows/${id}/repairs`),
+  versions: (id: string) => request<Array<{ id: string; workflow_id: string; version_number: number; created_at: string }>>(`/workflows/${id}/versions`),
+  history: (id: string) => request<AuditEvent[]>(`/workflows/${id}/history`),
+  qualityGate: (id: string) => request<QualityGateRun>(`/workflows/${id}/quality-gate`),
+  checkQualityGate: (id: string) =>
+    request<QualityGateRun>(`/workflows/${id}/quality-gate`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  report: (id: string) => request<Record<string, unknown>>(`/workflows/${id}/report?format=json`),
   generateRepair: (id: string, finding?: Record<string, unknown>) =>
     request<RepairProposal>(`/workflows/${id}/repairs/generate`, {
       method: "POST",

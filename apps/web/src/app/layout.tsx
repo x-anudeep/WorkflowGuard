@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "WorkflowGuard",
-  description: "Verification, validation, and observability foundation for workflows."
+  description: "Workflow verification, evaluation, testing, cost intelligence, and repair."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               </div>
               <div>
                 <div className="text-lg font-semibold">WorkflowGuard</div>
-                <div className="text-xs text-slate-500">Structural validation</div>
+                <div className="text-xs text-slate-500">Workflow assurance</div>
               </div>
             </Link>
             <nav className="mt-9 space-y-1">

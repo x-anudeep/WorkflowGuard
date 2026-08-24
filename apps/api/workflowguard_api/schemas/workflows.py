@@ -71,17 +71,71 @@ class ValidationRunRead(BaseModel):
 
 class DashboardMetrics(BaseModel):
     total_workflows: int
+    total_workflow_versions: int = 0
     total_validation_runs: int
     average_structural_score: float
     critical_issues: int
     total_evaluation_runs: int = 0
     average_overall_score: float = 0
+    average_quality_score: float = 0
     total_workflow_tests: int = 0
+    test_pass_rate: float = 0
+    average_coverage: float = 0
     latest_test_coverage: float = 0
     failing_test_runs: int = 0
     latest_monthly_cost: float = 0
+    potential_cost_savings: float = 0
     open_repair_proposals: int = 0
+    charts: dict[str, Any] = Field(default_factory=dict)
     recent_workflows: list[WorkflowSummary]
+
+
+class AuditEventRead(BaseModel):
+    id: UUID
+    workflow_id: UUID | None = None
+    version_id: UUID | None = None
+    event_type: str
+    actor: str
+    message: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class QualityGateConfigRead(BaseModel):
+    structural_min: float = 90
+    prompt_alignment_min: float = 90
+    security_min: float = 85
+    reliability_min: float = 80
+    maintainability_min: float = 70
+    test_coverage_min: float = 85
+    require_all_critical_tests_pass: bool = True
+    allow_critical_security_findings: bool = False
+    monthly_cost_increase_max_percent: float = 20
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QualityGateReasonRead(BaseModel):
+    rule_id: str
+    passed: bool
+    title: str
+    message: str
+    expected: str
+    actual: str
+    severity: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QualityGateRunRead(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    version_id: UUID
+    status: str
+    score: float
+    config: QualityGateConfigRead
+    dimensions: dict[str, float | None] = Field(default_factory=dict)
+    reasons: list[QualityGateReasonRead]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
 
 
 class EvaluationRequest(BaseModel):

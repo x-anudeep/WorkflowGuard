@@ -1,0 +1,72 @@
+{
+  "name": "Correct Invoice Processing Workflow",
+  "nodes": [
+    {
+      "id": "gmail_trigger",
+      "name": "New invoice email in Gmail",
+      "type": "trigger",
+      "provider": "gmail",
+      "operation": "new_email",
+      "configuration": { "label": "Invoices" }
+    },
+    {
+      "id": "extract_invoice",
+      "name": "Extract invoice fields",
+      "type": "action",
+      "subtype": "transform",
+      "operation": "extract_fields",
+      "configuration": { "fields": ["vendor", "amount", "due_date", "invoice_id"] }
+    },
+    {
+      "id": "amount_check",
+      "name": "Check amount",
+      "type": "condition",
+      "operation": "greater_than",
+      "configuration": { "left": "invoice.amount", "operator": ">", "right": 10000 }
+    },
+    {
+      "id": "manual_approval",
+      "name": "Manual approval for high-value invoice",
+      "type": "human_approval",
+      "provider": "finance_ops",
+      "operation": "approval",
+      "configuration": { "required_role": "finance_manager", "sla_hours": 24 }
+    },
+    {
+      "id": "sap_save",
+      "name": "Save approved invoice to SAP",
+      "type": "external_api",
+      "provider": "sap",
+      "operation": "create_invoice",
+      "configuration": {
+        "endpoint": "https://sap.example.com/invoices",
+        "method": "POST",
+        "timeout_seconds": 20,
+        "retry": { "max_attempts": 3, "backoff": "exponential" }
+      }
+    },
+    {
+      "id": "sap_error",
+      "name": "Handle SAP failure",
+      "type": "action",
+      "operation": "notify_finance_ops",
+      "configuration": { "channel": "finance-alerts" }
+    },
+    {
+      "id": "end",
+      "name": "Done",
+      "type": "end",
+      "configuration": {}
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "gmail_trigger", "target": "extract_invoice" },
+    { "id": "e2", "source": "extract_invoice", "target": "amount_check" },
+    { "id": "e3", "source": "amount_check", "target": "manual_approval", "condition": "invoice.amount > 10000", "label": "high amount" },
+    { "id": "e4", "source": "manual_approval", "target": "sap_save", "condition": "approved == true" },
+    { "id": "e5", "source": "amount_check", "target": "sap_save", "condition": "invoice.amount <= 10000", "label": "normal amount" },
+    { "id": "e6", "source": "sap_save", "target": "end", "label": "success" },
+    { "id": "e7", "source": "sap_save", "target": "sap_error", "condition": "error", "label": "failure path" },
+    { "id": "e8", "source": "sap_error", "target": "end" }
+  ]
+}

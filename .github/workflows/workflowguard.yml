@@ -1,0 +1,55 @@
+name: WorkflowGuard Quality Gates
+
+on:
+  pull_request:
+    paths:
+      - "examples/**/*.json"
+      - "examples/**/*.bpmn"
+      - "workflows/**/*.json"
+      - "workflows/**/*.bpmn"
+      - ".github/workflows/workflowguard.yml"
+
+jobs:
+  workflowguard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      WORKFLOWGUARD_AI_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install WorkflowGuard CLI
+        run: pip install -e packages/workflow-core
+      - name: Detect changed workflow files
+        id: changed
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -E '(\.json|\.bpmn)$' \
+            | grep -E '^(examples|workflows)/' > changed-workflows.txt || true
+          cat changed-workflows.txt
+      - name: Run WorkflowGuard checks
+        run: |
+          mkdir -p workflowguard-reports
+          status=0
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            safe_name="$(echo "$file" | tr '/.' '__')"
+            workflowguard check "$file" --json > "workflowguard-reports/${safe_name}.json" || status=$?
+            workflowguard report "$file" --format markdown > "workflowguard-reports/${safe_name}.md" || true
+          done < changed-workflows.txt
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workflowguard-reports
+          path: workflowguard-reports
+
+# Optional AI evaluation:
+# Store provider credentials in repository or organization secrets and set
+# WORKFLOWGUARD_AI_PROVIDER / WORKFLOWGUARD_AI_API_KEY / WORKFLOWGUARD_AI_MODEL
+# for a CI variant that allows AI-assisted requirement extraction.

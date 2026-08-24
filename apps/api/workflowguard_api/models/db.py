@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -54,6 +54,7 @@ class WorkflowRecord(Base):
     test_runs: Mapped[list[WorkflowTestRunRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
     cost_estimates: Mapped[list[CostEstimateRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
     repair_proposals: Mapped[list[RepairProposalRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
+    audit_events: Mapped[list[AuditEventRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
 
 
 class WorkflowVersion(Base):
@@ -395,3 +396,37 @@ class RepairValidationResultRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     proposal: Mapped[RepairProposalRecord] = relationship(back_populates="validation_results")
+
+
+class QualityGateRunRecord(Base):
+    __tablename__ = "quality_gate_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    config_json: Mapped[dict] = mapped_column("config", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    dimensions_json: Mapped[dict] = mapped_column("dimensions", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    reasons_json: Mapped[list] = mapped_column("reasons", json_type(), default=list, nullable=False)
+    metadata_json: Mapped[dict] = mapped_column("metadata", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class AuditEventRecord(Base):
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_events_workflow_created", "workflow_id", "created_at"),
+        Index("ix_audit_events_type_created", "event_type", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflows.id"), nullable=True)
+    version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_versions.id"), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    actor: Mapped[str] = mapped_column(String(100), nullable=False, default="system")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict] = mapped_column("metadata", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    workflow: Mapped[WorkflowRecord | None] = relationship(back_populates="audit_events")
