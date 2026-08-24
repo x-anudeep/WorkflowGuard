@@ -23,3 +23,7 @@ export function statusTone(status?: string | null): string {
   if (status === "SKIPPED") return "text-slate-500";
   return "text-slate-600";
 }
+
+export function money(value: number): string {
+  return new Intl.NumberFormat("en", { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(value);
+}

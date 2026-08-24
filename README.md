@@ -8,11 +8,13 @@ Part 2 adds the intelligence layer: prompt-to-requirement extraction, semantic p
 
 Part 3 turns WorkflowGuard into an automated workflow QA system: deterministic and optional AI-assisted test generation, safe workflow simulation, assertions, failure injection, coverage calculation, test history, UI reporting, and CI-friendly CLI commands.
 
+Part 4 adds cost intelligence and controlled repair: configurable pricing, scenario forecasts, optimization recommendations, workflow version comparison, AI-assisted repair patch generation, sandbox preview, and accept/reject versioning.
+
 ## Architecture
 
-- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, simulator, assertions, coverage, scoring, and CLI.
-- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation/test handling, REST API, provider-neutral AI adapters.
-- `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, evaluation, and workflow testing UI.
+- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, simulator, assertions, coverage, cost estimation, version comparison, repair patches, scoring, and CLI.
+- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation/test/cost/repair handling, REST API, provider-neutral AI adapters.
+- `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, evaluation, testing, cost, compare, and repair UI.
 - `examples`: valid and intentionally broken BPMN, generic JSON, and n8n workflows.
 - `docs`: architecture notes and roadmap context.
 
@@ -71,6 +73,8 @@ pip install -e packages/workflow-core
 workflowguard validate examples/json/valid-workflow.json
 workflowguard evaluate examples/json/valid-workflow.json --prompt "Approve requests, then notify Slack."
 workflowguard test examples/json/valid-workflow.json --json
+workflowguard cost examples/json/valid-workflow.json --executions-day 500 --json
+workflowguard compare examples/json/valid-workflow.json examples/json/orphan-node.json --json
 ```
 
 Exit codes:
@@ -134,7 +138,7 @@ WORKFLOWGUARD_AI_MODEL=gpt-4o-mini
 WORKFLOWGUARD_AI_TIMEOUT_SECONDS=20
 ```
 
-AI requirement responses are validated against the `RequirementSpec` schema before use. AI-generated tests are validated against the `TestGenerationResult`/`WorkflowTest` schemas before storage. Provider errors, timeouts, malformed output, rate limits, and missing credentials fall back to deterministic generation.
+AI requirement responses are validated against the `RequirementSpec` schema before use. AI-generated tests are validated against the `TestGenerationResult`/`WorkflowTest` schemas before storage. AI repair patches are validated against the `RepairPatch` schema and only applied to a temporary candidate for preview. Provider errors, timeouts, malformed output, rate limits, and missing credentials fall back to deterministic generation.
 
 ## Workflow Testing
 
@@ -160,6 +164,30 @@ Coverage is workflow coverage, not source-code coverage:
 - Requirement Coverage
 - Overall Test Coverage
 
+## Cost Intelligence
+
+WorkflowGuard estimates:
+
+- Cost per execution
+- Daily, monthly, and annual projections
+- LLM/model token costs
+- External API, compute, database, storage, email/messaging, and configurable node costs
+- Scenario forecasts using executions/day, monthly executions, average payload size, token estimates, and failure/retry rate
+
+Pricing is stored in an editable/versioned catalog with provider, model, effective date, unit costs, currency, source, and metadata. Seeded pricing is a development assumption, not a billing authority.
+
+Cost estimates differ from actual provider bills because real invoices can include exact tokenizer behavior, free tiers, tiered rates, discounts, taxes, regional pricing, minimum charges, cache discounts, batch discounts, retries outside the workflow, and provider-side rounding. Every estimate response includes the assumptions used.
+
+Optimization findings are deterministic unless explicitly marked otherwise. WorkflowGuard may recommend benchmarking cheaper models or caching repeated calls, but it does not claim two models are equivalent without evidence.
+
+## Repair
+
+Repair proposals are safe patches against the canonical workflow. The lifecycle is:
+
+Finding -> patch proposal -> schema validation -> temporary candidate -> validation -> semantic evaluation -> generated test run -> cost estimate -> before/after preview -> accept or reject.
+
+Accepted repairs create a new workflow version and preserve the original workflow, files, tests, and history. Safety flags call out new external destinations, removed approval nodes, removed workflow nodes, and other behavior changes detected by static comparison.
+
 ## Important Endpoints
 
 - `POST /api/workflows`
@@ -181,6 +209,15 @@ Coverage is workflow coverage, not source-code coverage:
 - `POST /api/tests/{test_id}/run`
 - `GET /api/workflows/{id}/test-runs`
 - `GET /api/test-runs/{id}`
+- `GET /api/pricing`
+- `POST /api/pricing`
+- `GET /api/workflows/{id}/cost`
+- `POST /api/workflows/{id}/cost`
+- `GET /api/workflows/{id}/versions/compare`
+- `POST /api/workflows/{id}/repairs/generate`
+- `GET /api/workflows/{id}/repairs`
+- `POST /api/repairs/{proposal_id}/accept`
+- `POST /api/repairs/{proposal_id}/reject`
 - `GET /api/dashboard`
 
 ## Environment Variables
@@ -200,12 +237,14 @@ Coverage is workflow coverage, not source-code coverage:
 
 - Simulation is intentionally safe and adapter-based; it does not execute native workflow engine code or call real external services.
 - Generated tests are reviewable starting points, not trusted truth.
+- Cost estimates are planning estimates, not provider bills.
+- Repair patches operate on canonical workflow versions; original uploaded source files are preserved but not rewritten.
 - Semantic evaluation is static and best-effort; it does not prove runtime correctness.
 - The deterministic requirement extractor is intentionally conservative and can miss nuanced requirements without an AI provider.
-- No AI repair, cost estimation, production execution logging, or observability ingestion yet.
+- No production execution logging or observability ingestion yet.
 - BPMN diagram rendering is not enabled in the UI yet, but BPMN metadata is preserved for adding `bpmn-js`.
 - Authentication and multi-user project isolation are intentionally deferred.
 
 ## Roadmap
 
-Part 4 should add cost estimation, runtime/log observability ingestion, historical trend analysis, and deeper reporting based on validation, evaluation, and test-run history.
+Part 5 should add production observability, execution/log ingestion, historical trend analysis, alerting, deeper dashboard reporting, and final hardening.

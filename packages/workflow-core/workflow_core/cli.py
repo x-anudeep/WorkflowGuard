@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 from workflow_core.canonical.models import SourceType
+from workflow_core.comparison import VersionComparisonEngine
+from workflow_core.costing import CostEstimator, CostOptimizationEngine, CostScenario
 from workflow_core.evaluation import SemanticEvaluationEngine
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.registry import default_parser_registry
@@ -16,22 +18,43 @@ from workflow_core.validation.engine import ValidationEngine
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="workflowguard", description="WorkflowGuard workflow QA CLI")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    for command in ("validate", "evaluate", "test"):
+    for command in ("validate", "evaluate", "test", "cost"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("file", type=Path)
         command_parser.add_argument("--prompt", default=None)
         command_parser.add_argument("--source-type", default=SourceType.UNKNOWN.value)
         command_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+        if command == "cost":
+            command_parser.add_argument("--executions-day", type=int, default=100)
+            command_parser.add_argument("--input-tokens", type=int, default=1000)
+            command_parser.add_argument("--output-tokens", type=int, default=300)
+            command_parser.add_argument("--retry-rate", type=float, default=0.05)
+    compare_parser = subcommands.add_parser("compare")
+    compare_parser.add_argument("file_a", type=Path)
+    compare_parser.add_argument("file_b", type=Path)
+    compare_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     args = parser.parse_args(argv)
 
-    try:
-        parsed = default_parser_registry().parse(
-            args.file.name,
-            args.file.read_bytes(),
-            SourceType(args.source_type),
-            args.prompt,
-            None,
+    if args.command == "compare":
+        try:
+            before = _parse_file(args.file_a)
+            after = _parse_file(args.file_b)
+        except (OSError, WorkflowParseError, ValueError) as exc:
+            _emit(args.json, {"status": "ERROR", "error": str(exc)})
+            return 2
+        before_cost = CostEstimator().estimate(before)
+        after_cost = CostEstimator().estimate(after)
+        comparison = VersionComparisonEngine().compare(
+            before,
+            after,
+            cost_before=before_cost.cost_per_run,
+            cost_after=after_cost.cost_per_run,
         )
+        _emit(args.json, {"status": "completed", **comparison.model_dump(mode="json")})
+        return 0
+
+    try:
+        parsed = default_parser_registry().parse(args.file.name, args.file.read_bytes(), SourceType(args.source_type), args.prompt, None)
     except (OSError, WorkflowParseError, ValueError) as exc:
         _emit(args.json, {"status": "ERROR", "error": str(exc)})
         return 2
@@ -62,6 +85,23 @@ def main(argv: list[str] | None = None) -> int:
         _emit(args.json, payload)
         return 1 if result.overall_score < 70 else 0
 
+    if args.command == "cost":
+        scenario = CostScenario(
+            executions_per_day=args.executions_day,
+            average_input_tokens=args.input_tokens,
+            average_output_tokens=args.output_tokens,
+            failure_retry_rate=args.retry_rate,
+        )
+        estimate = CostEstimator().estimate(workflow, scenario)
+        findings = CostOptimizationEngine().analyze(workflow, estimate)
+        payload = {
+            "status": "completed",
+            "estimate": estimate.model_dump(mode="json"),
+            "optimization_findings": [finding.model_dump(mode="json") for finding in findings],
+        }
+        _emit(args.json, payload)
+        return 0
+
     generation = DeterministicTestGenerator().generate(workflow, None)
     runner = WorkflowTestRunner()
     runs = []
@@ -91,11 +131,28 @@ def _emit(as_json: bool, payload: dict) -> None:
         print(json.dumps(payload, indent=2))
     else:
         print(f"Status: {payload.get('status')}")
-        for key in ("structural_quality_score", "overall_score", "tests", "passed", "failed", "overall_coverage"):
+        for key in (
+            "structural_quality_score",
+            "overall_score",
+            "cost_per_run",
+            "monthly_cost",
+            "tests",
+            "passed",
+            "failed",
+            "overall_coverage",
+            "estimated_cost_delta",
+        ):
             if key in payload:
                 print(f"{key}: {payload[key]}")
+        if "estimate" in payload:
+            print(f"cost_per_run: {payload['estimate']['cost_per_run']}")
+            print(f"monthly_cost: {payload['estimate']['monthly_cost']}")
         if payload.get("error"):
             print(f"error: {payload['error']}")
+
+
+def _parse_file(path: Path):
+    return default_parser_registry().parse(path.name, path.read_bytes(), SourceType.UNKNOWN, None, None).workflow
 
 
 if __name__ == "__main__":

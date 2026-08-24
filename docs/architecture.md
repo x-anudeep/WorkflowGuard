@@ -2,7 +2,7 @@
 
 ## Scope
 
-Part 1 established a production-oriented foundation for parsing, storing, validating, and visualizing workflow graphs. Part 2 added semantic evaluation and prompt alignment without changing the deterministic validation contract. Part 3 adds automated workflow QA: test generation, safe simulation, assertions, failure injection, coverage, and persisted test history. It still does not implement repair, cost analysis, or runtime observability ingestion.
+Part 1 established a production-oriented foundation for parsing, storing, validating, and visualizing workflow graphs. Part 2 added semantic evaluation and prompt alignment without changing the deterministic validation contract. Part 3 added automated workflow QA: test generation, safe simulation, assertions, failure injection, coverage, and persisted test history. Part 4 adds cost intelligence, version comparison, and controlled AI-assisted repair. It still does not implement production observability ingestion or alerting.
 
 ## Monorepo Layout
 
@@ -11,7 +11,7 @@ apps/
   api/      FastAPI application, database models, migrations, REST endpoints
   web/      Next.js application, upload UI, dashboard, graph visualization
 packages/
-  workflow-core/  Canonical models, parsers, graph validation, requirement extraction, semantic evaluation, tests, simulator, CLI
+  workflow-core/  Canonical models, parsers, graph validation, requirement extraction, semantic evaluation, tests, simulator, costing, comparison, repair, CLI
 examples/   Supported and intentionally broken workflow fixtures
 docs/       Architecture and operating notes
 docker/     Service Dockerfiles
@@ -68,7 +68,7 @@ Every evaluation finding is explainable: expected behavior, observed behavior, r
 
 The API owns provider adapters. The core evaluation and testing engines do not depend on an AI vendor. `WORKFLOWGUARD_AI_PROVIDER=none` runs the system in deterministic mode. `openai` can be configured with `WORKFLOWGUARD_AI_API_KEY`, `WORKFLOWGUARD_AI_MODEL`, and `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`.
 
-Provider timeouts, malformed responses, credential failures, rate limits, and request errors are handled gracefully and fall back to deterministic requirement extraction and deterministic test generation. Raw model output is never trusted or stored without schema validation.
+Provider timeouts, malformed responses, credential failures, rate limits, and request errors are handled gracefully and fall back to deterministic requirement extraction, deterministic test generation, and deterministic repair patches. Raw model output is never trusted or stored without schema validation.
 
 ## Workflow QA
 
@@ -84,6 +84,33 @@ Part 3 introduces `workflow_core.testing`:
 External integrations are mocked by default. Failure injection models timeouts, rate limits, HTTP 500s, authorization errors, unavailable dependencies, and malformed LLM output without calling real services or executing uploaded code.
 
 The `workflowguard` CLI exposes `validate`, `evaluate`, and `test` commands with stable exit codes for future GitHub Actions use.
+
+## Cost Intelligence
+
+Part 4 introduces `workflow_core.costing`:
+
+- `PricingEntry`: editable/versioned pricing assumptions with provider, model, effective date, unit costs, currency, source, and metadata
+- `CostScenario`: executions/day or month, payload size, token estimates, and failure/retry rate
+- `CostEstimator`: per-node and per-run estimates, projected daily/monthly/annual totals, and line-item pricing assumptions
+- `CostOptimizationEngine`: deterministic optimization findings for repeated LLM calls, expensive models used for simple tasks, duplicate API calls, excessive retries, and large repeated model context
+
+Pricing seed data is deliberately labeled as a development assumption. It is not hardcoded into estimation logic; API persistence can store updated catalog entries.
+
+## Version Comparison
+
+`workflow_core.comparison` compares canonical workflow versions for added/removed nodes, added/removed edges, configuration changes, and score/cost/coverage deltas where the API has stored history. Repair acceptance uses this mechanism to make behavior changes visible.
+
+## Repair
+
+Part 4 introduces `workflow_core.repair` and API repair services:
+
+- AI repair providers generate schema-validated `RepairPatch` objects.
+- Deterministic repair fallback proposes bounded timeout/retry configuration.
+- Patches apply only to an in-memory candidate for preview.
+- Preview runs static validation, semantic evaluation, generated tests, and cost estimation.
+- Accepting a proposal creates a new workflow version; rejecting keeps history without mutating the workflow.
+
+Safety checks flag new external destinations, approval removal, and node removal. Uploaded source files and existing tests are not rewritten or deleted.
 
 ## Persistence
 
@@ -102,12 +129,18 @@ PostgreSQL stores:
 - dimension scores
 - workflow tests
 - workflow test runs
+- pricing catalog
+- cost scenarios
+- cost estimates
+- optimization findings
+- repair proposals
+- repair validation results
 
-The schema leaves room for future tables such as cost estimates, execution logs, observability events, and AI repairs.
+The schema leaves room for future tables such as execution logs, observability events, alerts, and deployment environments.
 
 ## API
 
-FastAPI exposes upload, list, detail, graph, validation, semantic evaluation, requirements, test generation, test creation, test execution, test history, versions, dashboard, and health endpoints under `/api`. OpenAPI docs are generated automatically at `/docs`.
+FastAPI exposes upload, list, detail, graph, validation, semantic evaluation, requirements, test generation, test creation, test execution, test history, pricing, cost estimation, version comparison, repair proposal/accept/reject, versions, dashboard, and health endpoints under `/api`. OpenAPI docs are generated automatically at `/docs`.
 
 ## Frontend
 
@@ -118,6 +151,7 @@ The Next.js UI is a developer-tool surface:
 - Workflow detail shows overview, React Flow graph, validation findings, canonical source, and version context.
 - Workflow detail shows AI Evaluation with overall/dimension scores, requirement-vs-implementation evidence, grouped findings, and evaluation history.
 - Workflow detail shows Tests with generation/run controls, total/pass/fail/coverage metrics, generated-test rationale, and stored execution traces.
+- Workflow detail shows Cost, Versions / Compare, and Repair panels with scenario controls, line-item assumptions, optimization findings, version diffs, patch previews, safety flags, and accept/reject actions.
 - Node type styling distinguishes triggers, actions, conditions, LLMs, human approvals, external APIs, database nodes, and end nodes.
 
 ## Security Posture
@@ -127,3 +161,5 @@ Part 1 validates extensions and size, parses XML with entity resolution and netw
 Part 2 adds static security findings for embedded credentials, secret-like values, unsafe HTTP endpoints, missing auth configuration, and potential LLM sensitive-data exposure. These checks are explicitly best-effort and do not claim complete security coverage.
 
 Part 3 simulation remains sandboxed at the model level: it never executes uploaded scripts, expressions, or workflow-engine runtime code. External systems are represented through mocks and failure injections.
+
+Part 4 repair is sandboxed at the canonical graph level: model output cannot overwrite stored source files or mutate current versions directly. Accepted proposals create new versions after preview.

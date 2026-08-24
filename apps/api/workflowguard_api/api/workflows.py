@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 from workflow_core.canonical.models import SourceType, Workflow
+from workflow_core.comparison import VersionComparisonEngine
+from workflow_core.costing import CostEstimator, CostScenario, PricingEntry
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.testing import WorkflowTest
+from workflow_core.validation import ValidationEngine
 
 from workflowguard_api.db.session import get_db
 from workflowguard_api.models.db import ValidationRun, WorkflowRecord
@@ -19,6 +22,14 @@ from workflowguard_api.schemas.workflows import (
     GenerateTestsRequest,
     GenerateTestsResponse,
     GraphRead,
+    CostEstimateRead,
+    CostScenarioCreate,
+    OptimizationFindingRead,
+    PricingEntryCreate,
+    PricingEntryRead,
+    RepairDecisionRequest,
+    RepairGenerateRequest,
+    RepairProposalRead,
     RequirementSpecRead,
     RunWorkflowTestsRequest,
     TestRunSummary,
@@ -31,8 +42,11 @@ from workflowguard_api.schemas.workflows import (
     WorkflowTestRead,
     WorkflowTestRunRead,
     WorkflowVersionRead,
+    VersionCompareRead,
 )
+from workflowguard_api.services.costs import CostService
 from workflowguard_api.services.evaluations import EvaluationNotFoundError, EvaluationService
+from workflowguard_api.services.repairs import RepairProposalNotFoundError, RepairService
 from workflowguard_api.services.testing import (
     WorkflowTestNotFoundError,
     WorkflowTestRunNotFoundError,
@@ -53,9 +67,13 @@ def dashboard(db: Session = Depends(get_db)) -> DashboardMetrics:
     service = WorkflowService(db)
     evaluation_service = EvaluationService(db)
     testing_service = WorkflowTestingService(db)
+    cost_service = CostService(db)
+    repair_service = RepairService(db)
     metrics = service.dashboard_metrics()
     evaluation_metrics = evaluation_service.dashboard_metrics()
     testing_metrics = testing_service.dashboard_metrics()
+    cost_metrics = cost_service.dashboard_metrics()
+    repair_metrics = repair_service.dashboard_metrics()
     return DashboardMetrics(
         total_workflows=metrics["total_workflows"],
         total_validation_runs=metrics["total_validation_runs"],
@@ -66,6 +84,8 @@ def dashboard(db: Session = Depends(get_db)) -> DashboardMetrics:
         total_workflow_tests=testing_metrics["total_workflow_tests"],
         latest_test_coverage=testing_metrics["latest_test_coverage"],
         failing_test_runs=testing_metrics["failing_test_runs"],
+        latest_monthly_cost=cost_metrics["latest_monthly_cost"],
+        open_repair_proposals=repair_metrics["open_repair_proposals"],
         recent_workflows=[_summary(record) for record in metrics["recent_workflows"]],
     )
 
@@ -284,6 +304,125 @@ def get_test_run(run_id: UUID, db: Session = Depends(get_db)) -> WorkflowTestRun
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test run not found") from exc
 
 
+@router.get("/pricing", response_model=list[PricingEntryRead])
+def pricing(db: Session = Depends(get_db)) -> list[PricingEntryRead]:
+    return [_pricing(record) for record in CostService(db).pricing()]
+
+
+@router.post("/pricing", response_model=PricingEntryRead, status_code=status.HTTP_201_CREATED)
+def add_pricing(payload: PricingEntryCreate, db: Session = Depends(get_db)) -> PricingEntryRead:
+    try:
+        return _pricing(CostService(db).add_pricing(PricingEntry.model_validate(payload.model_dump())))
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/workflows/{workflow_id}/cost", response_model=CostEstimateRead)
+def estimate_cost(
+    workflow_id: UUID,
+    payload: CostScenarioCreate | None = None,
+    db: Session = Depends(get_db),
+) -> CostEstimateRead:
+    try:
+        scenario = CostScenario.model_validate(payload.model_dump()) if payload else CostScenario()
+        return _cost_estimate(CostService(db).estimate(workflow_id, scenario))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/workflows/{workflow_id}/cost", response_model=CostEstimateRead)
+def latest_cost(workflow_id: UUID, db: Session = Depends(get_db)) -> CostEstimateRead:
+    try:
+        return _cost_estimate(CostService(db).latest_estimate(workflow_id))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/versions/compare", response_model=VersionCompareRead)
+def compare_versions(
+    workflow_id: UUID,
+    from_version: UUID | None = Query(None),
+    to_version: UUID | None = Query(None),
+    db: Session = Depends(get_db),
+) -> VersionCompareRead:
+    try:
+        record = WorkflowService(db).get_workflow(workflow_id)
+        versions_by_id = {version.id: version for version in record.versions}
+        sorted_versions = sorted(record.versions, key=lambda item: item.version_number)
+        before_version = versions_by_id.get(from_version) if from_version else (sorted_versions[-2] if len(sorted_versions) > 1 else sorted_versions[0])
+        after_version = versions_by_id.get(to_version) if to_version else sorted_versions[-1]
+        if before_version is None or after_version is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+        before = Workflow.model_validate(before_version.canonical_json)
+        after = Workflow.model_validate(after_version.canonical_json)
+        before_validation = ValidationEngine().validate(before)
+        after_validation = ValidationEngine().validate(after)
+        estimator = CostEstimator(CostService(db)._pricing_catalog())
+        before_cost = estimator.estimate(before).cost_per_run
+        after_cost = estimator.estimate(after).cost_per_run
+        comparison = VersionComparisonEngine().compare(
+            before,
+            after,
+            validation_before=before_validation.structural_quality_score,
+            validation_after=after_validation.structural_quality_score,
+            cost_before=before_cost,
+            cost_after=after_cost,
+        )
+        return VersionCompareRead(**comparison.model_dump(mode="json"))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.post("/workflows/{workflow_id}/repairs/generate", response_model=RepairProposalRead)
+def generate_repair(
+    workflow_id: UUID,
+    payload: RepairGenerateRequest | None = None,
+    db: Session = Depends(get_db),
+) -> RepairProposalRead:
+    try:
+        return _repair(
+            RepairService(db).generate(
+                workflow_id,
+                payload.finding if payload else None,
+                use_ai=payload.use_ai if payload else True,
+            )
+        )
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/workflows/{workflow_id}/repairs", response_model=list[RepairProposalRead])
+def list_repairs(workflow_id: UUID, db: Session = Depends(get_db)) -> list[RepairProposalRead]:
+    try:
+        return [_repair(record) for record in RepairService(db).list(workflow_id)]
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.post("/repairs/{proposal_id}/accept", response_model=RepairProposalRead)
+def accept_repair(proposal_id: UUID, db: Session = Depends(get_db)) -> RepairProposalRead:
+    try:
+        return _repair(RepairService(db).accept(proposal_id))
+    except RepairProposalNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repair proposal not found") from exc
+
+
+@router.post("/repairs/{proposal_id}/reject", response_model=RepairProposalRead)
+def reject_repair(
+    proposal_id: UUID,
+    payload: RepairDecisionRequest | None = None,
+    db: Session = Depends(get_db),
+) -> RepairProposalRead:
+    try:
+        return _repair(RepairService(db).reject(proposal_id, payload.reason if payload else None))
+    except RepairProposalNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repair proposal not found") from exc
+
+
 def _summary(record: WorkflowRecord) -> WorkflowSummary:
     latest = _latest_run(record)
     return WorkflowSummary(
@@ -470,4 +609,70 @@ def _test_run_summary(tests, runs) -> TestRunSummary:
         latest_coverage=float((latest.coverage or {}).get("overall_coverage") or 0) if latest else 0,
         last_run_at=latest.created_at if latest else None,
         runs=[_workflow_test_run(run) for run in runs],
+    )
+
+
+def _pricing(record) -> PricingEntryRead:
+    return PricingEntryRead(
+        id=record.id,
+        category=record.category,
+        provider=record.provider,
+        model=record.model,
+        effective_date=record.effective_date,
+        input_unit_cost=record.input_unit_cost,
+        output_unit_cost=record.output_unit_cost,
+        call_unit_cost=record.call_unit_cost,
+        unit=record.unit,
+        currency=record.currency,
+        source=record.source,
+        metadata=record.metadata_json,
+        created_at=record.created_at,
+    )
+
+
+def _cost_estimate(record) -> CostEstimateRead:
+    return CostEstimateRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        scenario=record.scenario_json,
+        line_items=record.line_items,
+        cost_per_run=record.cost_per_run,
+        daily_cost=record.daily_cost,
+        monthly_cost=record.monthly_cost,
+        annual_cost=record.annual_cost,
+        assumptions=record.assumptions,
+        optimization_findings=[
+            OptimizationFindingRead(
+                id=finding.id,
+                rule_id=finding.rule_id,
+                title=finding.title,
+                message=finding.message,
+                category=finding.category,
+                node_id=finding.node_id,
+                estimated_monthly_savings=finding.estimated_monthly_savings,
+                confidence=finding.confidence,
+                deterministic=bool(finding.deterministic),
+                recommendation=finding.recommendation,
+                metadata=finding.metadata_json,
+            )
+            for finding in record.optimization_findings
+        ],
+        created_at=record.created_at,
+    )
+
+
+def _repair(record) -> RepairProposalRead:
+    return RepairProposalRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        finding_id=record.finding_id,
+        status=record.status,
+        patch=record.patch_json,
+        preview=record.preview_json,
+        safety_flags=record.safety_flags,
+        accepted_version_id=record.accepted_version_id,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
     )

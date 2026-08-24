@@ -79,6 +79,8 @@ class DashboardMetrics(BaseModel):
     total_workflow_tests: int = 0
     latest_test_coverage: float = 0
     failing_test_runs: int = 0
+    latest_monthly_cost: float = 0
+    open_repair_proposals: int = 0
     recent_workflows: list[WorkflowSummary]
 
 
@@ -266,3 +268,117 @@ class TestRunSummary(BaseModel):
     latest_coverage: float
     last_run_at: datetime | None = None
     runs: list[WorkflowTestRunRead]
+
+
+class PricingEntryCreate(BaseModel):
+    category: str
+    provider: str
+    model: str | None = None
+    effective_date: datetime
+    input_unit_cost: float = 0
+    output_unit_cost: float = 0
+    call_unit_cost: float = 0
+    unit: str = "call"
+    currency: str = "USD"
+    source: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PricingEntryRead(PricingEntryCreate):
+    id: UUID
+    created_at: datetime
+
+
+class CostScenarioCreate(BaseModel):
+    name: str = "Default scenario"
+    executions_per_day: int = 100
+    executions_per_month: int | None = None
+    average_payload_kb: float = 10
+    average_input_tokens: int = 1000
+    average_output_tokens: int = 300
+    failure_retry_rate: float = 0.05
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CostLineItemRead(BaseModel):
+    node_id: str | None = None
+    node_name: str | None = None
+    category: str
+    provider: str | None = None
+    model: str | None = None
+    calls_per_execution: float
+    input_tokens: int
+    output_tokens: int
+    unit_cost: float
+    estimated_cost_per_run: float
+    pricing_assumption: dict[str, Any] = Field(default_factory=dict)
+    explanation: str
+
+
+class OptimizationFindingRead(BaseModel):
+    id: UUID | str
+    rule_id: str
+    title: str
+    message: str
+    category: str
+    node_id: str | None = None
+    estimated_monthly_savings: float
+    confidence: str
+    deterministic: bool
+    recommendation: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CostEstimateRead(BaseModel):
+    id: UUID | str
+    workflow_id: UUID | str
+    version_id: UUID | str | None = None
+    scenario: dict[str, Any]
+    line_items: list[CostLineItemRead]
+    cost_per_run: float
+    daily_cost: float
+    monthly_cost: float
+    annual_cost: float
+    assumptions: list[str]
+    optimization_findings: list[OptimizationFindingRead] = Field(default_factory=list)
+    created_at: datetime
+
+
+class VersionCompareRead(BaseModel):
+    workflow_a_id: str
+    workflow_b_id: str
+    nodes_added: list[str]
+    nodes_removed: list[str]
+    edges_added: list[str]
+    edges_removed: list[str]
+    configuration_changed: list[str]
+    validation_score_delta: float | None = None
+    prompt_alignment_delta: float | None = None
+    security_delta: float | None = None
+    reliability_delta: float | None = None
+    test_coverage_delta: float | None = None
+    estimated_cost_delta: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RepairGenerateRequest(BaseModel):
+    finding: dict[str, Any] | None = None
+    use_ai: bool = True
+
+
+class RepairDecisionRequest(BaseModel):
+    reason: str | None = None
+
+
+class RepairProposalRead(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    version_id: UUID
+    finding_id: str | None = None
+    status: str
+    patch: dict[str, Any]
+    preview: dict[str, Any]
+    safety_flags: list[str]
+    accepted_version_id: UUID | None = None
+    created_at: datetime
+    updated_at: datetime

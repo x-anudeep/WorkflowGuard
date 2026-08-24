@@ -136,6 +136,8 @@ export type DashboardMetrics = {
   total_workflow_tests: number;
   latest_test_coverage: number;
   failing_test_runs: number;
+  latest_monthly_cost: number;
+  open_repair_proposals: number;
   recent_workflows: WorkflowSummary[];
 };
 
@@ -250,4 +252,79 @@ export type TestRunSummary = {
   latest_coverage: number;
   last_run_at?: string | null;
   runs: WorkflowTestRun[];
+};
+
+export type CostLineItem = {
+  node_id?: string | null;
+  node_name?: string | null;
+  category: string;
+  provider?: string | null;
+  model?: string | null;
+  calls_per_execution: number;
+  input_tokens: number;
+  output_tokens: number;
+  unit_cost: number;
+  estimated_cost_per_run: number;
+  pricing_assumption: Record<string, unknown>;
+  explanation: string;
+};
+
+export type OptimizationFinding = {
+  id: string;
+  rule_id: string;
+  title: string;
+  message: string;
+  category: string;
+  node_id?: string | null;
+  estimated_monthly_savings: number;
+  confidence: string;
+  deterministic: boolean;
+  recommendation: string;
+  metadata: Record<string, unknown>;
+};
+
+export type CostEstimate = {
+  id: string;
+  workflow_id: string;
+  version_id?: string | null;
+  scenario: Record<string, unknown>;
+  line_items: CostLineItem[];
+  cost_per_run: number;
+  daily_cost: number;
+  monthly_cost: number;
+  annual_cost: number;
+  assumptions: string[];
+  optimization_findings: OptimizationFinding[];
+  created_at: string;
+};
+
+export type VersionComparison = {
+  workflow_a_id: string;
+  workflow_b_id: string;
+  nodes_added: string[];
+  nodes_removed: string[];
+  edges_added: string[];
+  edges_removed: string[];
+  configuration_changed: string[];
+  validation_score_delta?: number | null;
+  prompt_alignment_delta?: number | null;
+  security_delta?: number | null;
+  reliability_delta?: number | null;
+  test_coverage_delta?: number | null;
+  estimated_cost_delta?: number | null;
+  metadata: Record<string, unknown>;
+};
+
+export type RepairProposal = {
+  id: string;
+  workflow_id: string;
+  version_id: string;
+  finding_id?: string | null;
+  status: string;
+  patch: Record<string, unknown>;
+  preview: Record<string, unknown>;
+  safety_flags: string[];
+  accepted_version_id?: string | null;
+  created_at: string;
+  updated_at: string;
 };

@@ -1,8 +1,11 @@
 import type {
   DashboardMetrics,
+  CostEstimate,
   EvaluationRun,
+  RepairProposal,
   TestRunSummary,
   ValidationRun,
+  VersionComparison,
   WorkflowDetail,
   WorkflowSummary,
   WorkflowTest,
@@ -65,6 +68,29 @@ export const api = {
       body: JSON.stringify({})
     }),
   testRuns: (id: string) => request<TestRunSummary>(`/workflows/${id}/test-runs`),
+  cost: (id: string) => request<CostEstimate>(`/workflows/${id}/cost`),
+  estimateCost: (id: string, payload: Record<string, unknown>) =>
+    request<CostEstimate>(`/workflows/${id}/cost`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  compareVersions: (id: string) => request<VersionComparison>(`/workflows/${id}/versions/compare`),
+  repairs: (id: string) => request<RepairProposal[]>(`/workflows/${id}/repairs`),
+  generateRepair: (id: string, finding?: Record<string, unknown>) =>
+    request<RepairProposal>(`/workflows/${id}/repairs/generate`, {
+      method: "POST",
+      body: JSON.stringify({ finding, use_ai: true })
+    }),
+  acceptRepair: (id: string) =>
+    request<RepairProposal>(`/repairs/${id}/accept`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  rejectRepair: (id: string) =>
+    request<RepairProposal>(`/repairs/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
   uploadWorkflow: (formData: FormData) =>
     request<WorkflowDetail>("/workflows/upload", {
       method: "POST",

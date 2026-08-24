@@ -36,6 +36,8 @@ export default async function DashboardPage() {
             <Metric icon={<FlaskConical size={20} />} label="Workflow tests" value={metrics.total_workflow_tests.toString()} />
             <Metric icon={<Gauge size={20} />} label="Test coverage" value={`${metrics.latest_test_coverage.toFixed(1)}%`} />
             <Metric icon={<AlertTriangle size={20} />} label="Failing test runs" value={metrics.failing_test_runs.toString()} />
+            <Metric icon={<Gauge size={20} />} label="Monthly cost" value={`$${metrics.latest_monthly_cost.toFixed(2)}`} />
+            <Metric icon={<AlertTriangle size={20} />} label="Open repairs" value={metrics.open_repair_proposals.toString()} />
           </div>
 
           <div className="mt-8">

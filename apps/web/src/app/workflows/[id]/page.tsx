@@ -1,7 +1,10 @@
 import Link from "next/link";
 
+import { CostPanel } from "@/components/CostPanel";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
+import { RepairPanel } from "@/components/RepairPanel";
 import { TestsPanel } from "@/components/TestsPanel";
+import { VersionComparePanel } from "@/components/VersionComparePanel";
 import { WorkflowGraph } from "@/components/WorkflowGraph";
 import { api } from "@/lib/api";
 import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
@@ -10,12 +13,15 @@ export const dynamic = "force-dynamic";
 
 export default async function WorkflowDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [workflow, validation, evaluations, tests, testRuns] = await Promise.all([
+  const [workflow, validation, evaluations, tests, testRuns, cost, comparison, repairs] = await Promise.all([
     api.workflow(id),
     api.validation(id),
     api.evaluations(id),
     api.tests(id),
     api.testRuns(id),
+    api.cost(id),
+    api.compareVersions(id),
+    api.repairs(id),
   ]);
 
   return (
@@ -75,6 +81,18 @@ export default async function WorkflowDetailPage({ params }: { params: { id: str
 
         <Panel title="Tests">
           <TestsPanel workflowId={workflow.id} initialTests={tests} initialRuns={testRuns} />
+        </Panel>
+
+        <Panel title="Cost">
+          <CostPanel workflowId={workflow.id} initialEstimate={cost} />
+        </Panel>
+
+        <Panel title="Versions / Compare">
+          <VersionComparePanel workflow={workflow} comparison={comparison} />
+        </Panel>
+
+        <Panel title="Repair">
+          <RepairPanel workflowId={workflow.id} initialRepairs={repairs} />
         </Panel>
 
         <Panel title="Source">

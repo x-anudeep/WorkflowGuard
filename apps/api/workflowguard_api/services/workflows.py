@@ -55,6 +55,54 @@ class WorkflowService:
         run = self.validate(record.id)
         return record, run
 
+    def create_version_from_canonical(self, workflow_id: uuid.UUID, workflow: Workflow) -> WorkflowVersion:
+        record = self.get_workflow(workflow_id)
+        next_number = max((version.version_number for version in record.versions), default=0) + 1
+        canonical = workflow.model_dump(mode="json")
+        canonical["id"] = str(record.id)
+        version = WorkflowVersion(
+            workflow_id=record.id,
+            version_number=next_number,
+            canonical_json=canonical,
+            variables_json=[variable.model_dump(mode="json") for variable in workflow.variables],
+        )
+        self.db.add(version)
+        self.db.flush()
+        record.current_version_id = version.id
+        for node in workflow.nodes:
+            self.db.add(
+                WorkflowNode(
+                    workflow_id=record.id,
+                    version_id=version.id,
+                    node_id=node.id,
+                    name=node.name,
+                    type=str(node.type),
+                    subtype=node.subtype,
+                    provider=node.provider,
+                    operation=node.operation,
+                    configuration=node.configuration,
+                    input_schema=node.input_schema,
+                    output_schema=node.output_schema,
+                    metadata_json=node.metadata,
+                )
+            )
+        for edge in workflow.edges:
+            self.db.add(
+                WorkflowEdge(
+                    workflow_id=record.id,
+                    version_id=version.id,
+                    edge_id=edge.id,
+                    source=edge.source,
+                    target=edge.target,
+                    condition=edge.condition,
+                    label=edge.label,
+                    metadata_json=edge.metadata,
+                )
+            )
+        self.db.commit()
+        self.db.refresh(version)
+        return version
+
     def list_workflows(self) -> list[WorkflowRecord]:
         return list(
             self.db.execute(
