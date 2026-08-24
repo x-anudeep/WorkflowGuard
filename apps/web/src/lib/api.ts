@@ -1,4 +1,12 @@
-import type { DashboardMetrics, EvaluationRun, ValidationRun, WorkflowDetail, WorkflowSummary } from "@/types/workflow";
+import type {
+  DashboardMetrics,
+  EvaluationRun,
+  TestRunSummary,
+  ValidationRun,
+  WorkflowDetail,
+  WorkflowSummary,
+  WorkflowTest,
+} from "@/types/workflow";
 
 const API_BASE_URL =
   typeof window === "undefined"
@@ -29,6 +37,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ use_ai: useAI })
     }),
+  tests: (id: string) => request<WorkflowTest[]>(`/workflows/${id}/tests`),
+  generateTests: (id: string, useAI = true, replaceExisting = false) =>
+    request<{ generated: number; tests: WorkflowTest[]; rationale: string; warnings: string[] }>(
+      `/workflows/${id}/tests/generate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ use_ai: useAI, replace_existing: replaceExisting })
+      }
+    ),
+  createTest: (id: string, payload: {
+    name: string;
+    description: string;
+    generated_by: string;
+    input_data: Record<string, unknown>;
+    assertions: Array<{ type: string; target?: string; expected?: unknown }>;
+    tags: string[];
+    importance: string;
+  }) =>
+    request<WorkflowTest>(`/workflows/${id}/tests`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  runTests: (id: string) =>
+    request<TestRunSummary>(`/workflows/${id}/tests/run`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+  testRuns: (id: string) => request<TestRunSummary>(`/workflows/${id}/test-runs`),
   uploadWorkflow: (formData: FormData) =>
     request<WorkflowDetail>("/workflows/upload", {
       method: "POST",

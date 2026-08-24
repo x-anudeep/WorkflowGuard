@@ -10,6 +10,8 @@ from workflowguard_api.models.db import (
     WorkflowFile,
     WorkflowNode,
     WorkflowRecord,
+    WorkflowTestRecord,
+    WorkflowTestRunRecord,
     WorkflowVersion,
 )
 
@@ -25,5 +27,7 @@ __all__ = [
     "WorkflowFile",
     "WorkflowNode",
     "WorkflowRecord",
+    "WorkflowTestRecord",
+    "WorkflowTestRunRecord",
     "WorkflowVersion",
 ]

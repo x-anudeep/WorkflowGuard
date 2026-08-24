@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 from workflow_core.canonical.models import SourceType, Workflow
 from workflow_core.parsers.errors import WorkflowParseError
+from workflow_core.testing import WorkflowTest
 
 from workflowguard_api.db.session import get_db
 from workflowguard_api.models.db import ValidationRun, WorkflowRecord
@@ -15,16 +16,28 @@ from workflowguard_api.schemas.workflows import (
     EvaluationFindingRead,
     EvaluationRequest,
     EvaluationRunRead,
+    GenerateTestsRequest,
+    GenerateTestsResponse,
     GraphRead,
     RequirementSpecRead,
+    RunWorkflowTestsRequest,
+    TestRunSummary,
     ValidationFindingRead,
     ValidationRunRead,
     WorkflowCreate,
     WorkflowDetail,
     WorkflowSummary,
+    WorkflowTestCreate,
+    WorkflowTestRead,
+    WorkflowTestRunRead,
     WorkflowVersionRead,
 )
 from workflowguard_api.services.evaluations import EvaluationNotFoundError, EvaluationService
+from workflowguard_api.services.testing import (
+    WorkflowTestNotFoundError,
+    WorkflowTestRunNotFoundError,
+    WorkflowTestingService,
+)
 from workflowguard_api.services.workflows import WorkflowNotFoundError, WorkflowService
 
 router = APIRouter()
@@ -39,8 +52,10 @@ def health() -> dict[str, str]:
 def dashboard(db: Session = Depends(get_db)) -> DashboardMetrics:
     service = WorkflowService(db)
     evaluation_service = EvaluationService(db)
+    testing_service = WorkflowTestingService(db)
     metrics = service.dashboard_metrics()
     evaluation_metrics = evaluation_service.dashboard_metrics()
+    testing_metrics = testing_service.dashboard_metrics()
     return DashboardMetrics(
         total_workflows=metrics["total_workflows"],
         total_validation_runs=metrics["total_validation_runs"],
@@ -48,6 +63,9 @@ def dashboard(db: Session = Depends(get_db)) -> DashboardMetrics:
         critical_issues=metrics["critical_issues"],
         total_evaluation_runs=evaluation_metrics["total_evaluation_runs"],
         average_overall_score=evaluation_metrics["average_overall_score"],
+        total_workflow_tests=testing_metrics["total_workflow_tests"],
+        latest_test_coverage=testing_metrics["latest_test_coverage"],
+        failing_test_runs=testing_metrics["failing_test_runs"],
         recent_workflows=[_summary(record) for record in metrics["recent_workflows"]],
     )
 
@@ -187,6 +205,85 @@ def get_requirements(workflow_id: UUID, db: Session = Depends(get_db)) -> Requir
     return _requirement_spec(spec) if spec else None
 
 
+@router.post("/workflows/{workflow_id}/tests/generate", response_model=GenerateTestsResponse)
+def generate_tests(
+    workflow_id: UUID,
+    payload: GenerateTestsRequest | None = None,
+    db: Session = Depends(get_db),
+) -> GenerateTestsResponse:
+    try:
+        result, records = WorkflowTestingService(db).generate_tests(
+            workflow_id,
+            use_ai=payload.use_ai if payload else True,
+            replace_existing=payload.replace_existing if payload else False,
+        )
+        return GenerateTestsResponse(
+            generated=len(records),
+            tests=[_workflow_test(record) for record in records],
+            rationale=result.rationale,
+            warnings=result.warnings,
+        )
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.post("/workflows/{workflow_id}/tests", response_model=WorkflowTestRead, status_code=status.HTTP_201_CREATED)
+def create_test(workflow_id: UUID, payload: WorkflowTestCreate, db: Session = Depends(get_db)) -> WorkflowTestRead:
+    try:
+        test = WorkflowTest.model_validate(payload.model_dump())
+        return _workflow_test(WorkflowTestingService(db).create_test(workflow_id, test))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/workflows/{workflow_id}/tests", response_model=list[WorkflowTestRead])
+def list_tests(workflow_id: UUID, db: Session = Depends(get_db)) -> list[WorkflowTestRead]:
+    try:
+        return [_workflow_test(record) for record in WorkflowTestingService(db).list_tests(workflow_id)]
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.post("/workflows/{workflow_id}/tests/run", response_model=TestRunSummary)
+def run_workflow_tests(
+    workflow_id: UUID,
+    payload: RunWorkflowTestsRequest | None = None,
+    db: Session = Depends(get_db),
+) -> TestRunSummary:
+    try:
+        runs = WorkflowTestingService(db).run_tests(workflow_id, payload.test_ids if payload else None)
+        return _test_run_summary(WorkflowTestingService(db).list_tests(workflow_id), runs)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.post("/tests/{test_id}/run", response_model=WorkflowTestRunRead)
+def run_single_test(test_id: UUID, db: Session = Depends(get_db)) -> WorkflowTestRunRead:
+    try:
+        return _workflow_test_run(WorkflowTestingService(db).run_test(test_id))
+    except WorkflowTestNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/test-runs", response_model=TestRunSummary)
+def list_test_runs(workflow_id: UUID, db: Session = Depends(get_db)) -> TestRunSummary:
+    try:
+        service = WorkflowTestingService(db)
+        return _test_run_summary(service.list_tests(workflow_id), service.list_runs(workflow_id))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/test-runs/{run_id}", response_model=WorkflowTestRunRead)
+def get_test_run(run_id: UUID, db: Session = Depends(get_db)) -> WorkflowTestRunRead:
+    try:
+        return _workflow_test_run(WorkflowTestingService(db).get_run(run_id))
+    except WorkflowTestRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test run not found") from exc
+
+
 def _summary(record: WorkflowRecord) -> WorkflowSummary:
     latest = _latest_run(record)
     return WorkflowSummary(
@@ -306,4 +403,71 @@ def _evaluation_run(run) -> EvaluationRunRead:
         ],
         requirement_spec=_requirement_spec(run.requirement_spec) if run.requirement_spec else None,
         created_at=run.created_at,
+    )
+
+
+def _workflow_test(record) -> WorkflowTestRead:
+    latest = sorted(record.runs, key=lambda run: run.created_at)[-1] if record.runs else None
+    return WorkflowTestRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        name=record.name,
+        description=record.description,
+        generated_by=record.generated_by,
+        input_data=record.input_data,
+        mocked_integrations=record.mocked_integrations,
+        failure_injections=record.failure_injections,
+        expected_path=record.expected_path,
+        expected_outputs=record.expected_outputs,
+        expected_side_effects=record.expected_side_effects,
+        forbidden_side_effects=record.forbidden_side_effects,
+        assertions=record.assertions,
+        expected_error=record.expected_error,
+        tags=record.tags,
+        importance=record.importance,
+        enabled=bool(record.enabled),
+        rationale=record.rationale,
+        linked_requirement_id=record.linked_requirement_id,
+        metadata=record.metadata_json,
+        latest_status=latest.status if latest else None,
+        latest_run_id=latest.id if latest else None,
+        latest_run_at=latest.created_at if latest else None,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _workflow_test_run(record) -> WorkflowTestRunRead:
+    coverage = record.coverage or None
+    return WorkflowTestRunRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        test_id=record.test_id,
+        status=record.status,
+        execution_trace=record.execution_trace,
+        assertion_results=record.assertion_results,
+        failures=record.failures,
+        duration_ms=record.duration_ms,
+        coverage=coverage,
+        created_at=record.created_at,
+    )
+
+
+def _test_run_summary(tests, runs) -> TestRunSummary:
+    latest = runs[0] if runs else None
+    latest_by_test = {}
+    for run in runs:
+        latest_by_test.setdefault(run.test_id, run)
+    latest_runs = list(latest_by_test.values())
+    return TestRunSummary(
+        total_tests=len(tests),
+        passed=sum(1 for run in latest_runs if run.status == "PASSED"),
+        failed=sum(1 for run in latest_runs if run.status == "FAILED"),
+        error=sum(1 for run in latest_runs if run.status == "ERROR"),
+        skipped=sum(1 for run in latest_runs if run.status == "SKIPPED"),
+        latest_coverage=float((latest.coverage or {}).get("overall_coverage") or 0) if latest else 0,
+        last_run_at=latest.created_at if latest else None,
+        runs=[_workflow_test_run(run) for run in runs],
     )

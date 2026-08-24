@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Gauge, GitBranch, ShieldCheck } from "lucide-react";
+import { AlertTriangle, FlaskConical, Gauge, GitBranch, ShieldCheck } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
@@ -33,6 +33,9 @@ export default async function DashboardPage() {
             <Metric icon={<Gauge size={20} />} label="Avg structural score" value={metrics.average_structural_score.toFixed(1)} />
             <Metric icon={<AlertTriangle size={20} />} label="Critical issues" value={metrics.critical_issues.toString()} />
             <Metric icon={<Gauge size={20} />} label="Avg workflow score" value={metrics.average_overall_score.toFixed(1)} />
+            <Metric icon={<FlaskConical size={20} />} label="Workflow tests" value={metrics.total_workflow_tests.toString()} />
+            <Metric icon={<Gauge size={20} />} label="Test coverage" value={`${metrics.latest_test_coverage.toFixed(1)}%`} />
+            <Metric icon={<AlertTriangle size={20} />} label="Failing test runs" value={metrics.failing_test_runs.toString()} />
           </div>
 
           <div className="mt-8">

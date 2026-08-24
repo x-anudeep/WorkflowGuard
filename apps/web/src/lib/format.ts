@@ -16,3 +16,10 @@ export function formatSourceFormat(value: string): string {
 export function formatDimension(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+
+export function statusTone(status?: string | null): string {
+  if (status === "PASSED") return "text-good";
+  if (status === "FAILED" || status === "ERROR") return "text-danger";
+  if (status === "SKIPPED") return "text-slate-500";
+  return "text-slate-600";
+}

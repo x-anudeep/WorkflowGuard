@@ -101,6 +101,8 @@ def _map_n8n_node_type(n8n_type: str) -> NodeType:
         return NodeType.LLM
     if "postgres" in value or "mysql" in value or "database" in value:
         return NodeType.DATABASE
+    if "gmail" in value or "email" in value or "mail" in value:
+        return NodeType.EMAIL
     if "http" in value or "api" in value:
         return NodeType.EXTERNAL_API
     return NodeType.ACTION

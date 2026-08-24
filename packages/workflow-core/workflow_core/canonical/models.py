@@ -28,6 +28,7 @@ class NodeType(StrEnum):
     HUMAN_APPROVAL = "human_approval"
     EXTERNAL_API = "external_api"
     DATABASE = "database"
+    EMAIL = "email"
     END = "end"
     EVENT = "event"
     GATEWAY = "gateway"

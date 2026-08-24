@@ -8,6 +8,13 @@ from workflowguard_api.ai.providers import (
     StaticMockAIProvider,
     provider_from_settings,
 )
+from workflowguard_api.ai.test_generation import (
+    NoopTestGenerationProvider,
+    OpenAITestGenerationProvider,
+    StaticMockTestGenerationProvider,
+    TestGenerationProvider,
+    test_generation_provider_from_settings,
+)
 
 __all__ = [
     "AIProviderError",
@@ -17,5 +24,10 @@ __all__ = [
     "OpenAIResponsesProvider",
     "RequirementExtractionProvider",
     "StaticMockAIProvider",
+    "NoopTestGenerationProvider",
+    "OpenAITestGenerationProvider",
+    "StaticMockTestGenerationProvider",
+    "TestGenerationProvider",
     "provider_from_settings",
+    "test_generation_provider_from_settings",
 ]

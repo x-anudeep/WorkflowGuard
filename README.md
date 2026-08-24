@@ -6,11 +6,13 @@ Part 1 built the deterministic foundation: upload BPMN 2.0 XML, generic JSON, or
 
 Part 2 adds the intelligence layer: prompt-to-requirement extraction, semantic prompt alignment, explainable scoring, reliability analysis, security analysis, maintainability analysis, and persisted evaluation history.
 
+Part 3 turns WorkflowGuard into an automated workflow QA system: deterministic and optional AI-assisted test generation, safe workflow simulation, assertions, failure injection, coverage calculation, test history, UI reporting, and CI-friendly CLI commands.
+
 ## Architecture
 
-- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, and scoring.
-- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation handling, REST API, provider-neutral AI adapters.
-- `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, and evaluation UI.
+- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, simulator, assertions, coverage, scoring, and CLI.
+- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation/test handling, REST API, provider-neutral AI adapters.
+- `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, evaluation, and workflow testing UI.
 - `examples`: valid and intentionally broken BPMN, generic JSON, and n8n workflows.
 - `docs`: architecture notes and roadmap context.
 
@@ -60,6 +62,23 @@ npm run web:lint
 npm run web:build
 ```
 
+## CLI
+
+Install the core package locally, then use the `workflowguard` command in CI or local scripts:
+
+```bash
+pip install -e packages/workflow-core
+workflowguard validate examples/json/valid-workflow.json
+workflowguard evaluate examples/json/valid-workflow.json --prompt "Approve requests, then notify Slack."
+workflowguard test examples/json/valid-workflow.json --json
+```
+
+Exit codes:
+
+- `0`: command completed successfully and quality gates passed
+- `1`: workflow parsed but validation/evaluation/tests failed the command gate
+- `2`: file could not be read or parsed
+
 ## Supported Formats
 
 - BPMN 2.0 XML: `.bpmn`, `.xml`
@@ -100,7 +119,7 @@ When no AI provider is configured, WorkflowGuard still runs deterministic requir
 
 ## AI Provider Configuration
 
-The backend uses a provider-neutral requirement extraction interface. The default is disabled:
+The backend uses provider-neutral requirement extraction and test-generation interfaces. The default is disabled:
 
 ```bash
 WORKFLOWGUARD_AI_PROVIDER=none
@@ -115,7 +134,31 @@ WORKFLOWGUARD_AI_MODEL=gpt-4o-mini
 WORKFLOWGUARD_AI_TIMEOUT_SECONDS=20
 ```
 
-AI responses are validated against the `RequirementSpec` schema before use. Provider errors, timeouts, malformed output, rate limits, and missing credentials fall back to deterministic extraction.
+AI requirement responses are validated against the `RequirementSpec` schema before use. AI-generated tests are validated against the `TestGenerationResult`/`WorkflowTest` schemas before storage. Provider errors, timeouts, malformed output, rate limits, and missing credentials fall back to deterministic generation.
+
+## Workflow Testing
+
+Workflow tests are first-class records. A test can store input data, mocked integrations, failure injections, expected paths, expected outputs, expected or forbidden side effects, assertions, tags, importance, generation source, rationale, and linked requirement IDs.
+
+Generated suites include:
+
+- happy path coverage
+- conditional branch tests
+- boundary, null, missing field, incorrect type, malformed input, and duplicate event cases
+- dependency failure injection for API/database/LLM nodes
+- HTTP timeout, HTTP 429, HTTP 500, authorization, unavailable dependency, retry exhaustion-style checks
+- prompt-injection defensive tests for LLM workflows
+- requirement-linked tests when a source prompt or requirement spec is available
+
+The simulator never executes uploaded workflow code. It walks the canonical graph with controlled node adapters and mocks external systems by default. Test runs store execution order, branch decisions, external calls, retries, failures, duration, token estimates, assertion results, and coverage.
+
+Coverage is workflow coverage, not source-code coverage:
+
+- Node Coverage
+- Edge Coverage
+- Branch Coverage
+- Requirement Coverage
+- Overall Test Coverage
 
 ## Important Endpoints
 
@@ -131,6 +174,13 @@ AI responses are validated against the `RequirementSpec` schema before use. Prov
 - `GET /api/workflows/{id}/evaluations`
 - `GET /api/workflows/{id}/evaluations/{evaluation_id}`
 - `GET /api/workflows/{id}/requirements`
+- `POST /api/workflows/{id}/tests/generate`
+- `POST /api/workflows/{id}/tests`
+- `GET /api/workflows/{id}/tests`
+- `POST /api/workflows/{id}/tests/run`
+- `POST /api/tests/{test_id}/run`
+- `GET /api/workflows/{id}/test-runs`
+- `GET /api/test-runs/{id}`
 - `GET /api/dashboard`
 
 ## Environment Variables
@@ -148,12 +198,14 @@ AI responses are validated against the `RequirementSpec` schema before use. Prov
 
 ## Current Limitations
 
+- Simulation is intentionally safe and adapter-based; it does not execute native workflow engine code or call real external services.
+- Generated tests are reviewable starting points, not trusted truth.
 - Semantic evaluation is static and best-effort; it does not prove runtime correctness.
 - The deterministic requirement extractor is intentionally conservative and can miss nuanced requirements without an AI provider.
-- No AI repair, execution simulation, or cost estimation yet.
+- No AI repair, cost estimation, production execution logging, or observability ingestion yet.
 - BPMN diagram rendering is not enabled in the UI yet, but BPMN metadata is preserved for adding `bpmn-js`.
 - Authentication and multi-user project isolation are intentionally deferred.
 
 ## Roadmap
 
-Part 3 should add automatic test generation and simulation over canonical workflows, using the deterministic and semantic findings as input.
+Part 4 should add cost estimation, runtime/log observability ingestion, historical trend analysis, and deeper reporting based on validation, evaluation, and test-run history.

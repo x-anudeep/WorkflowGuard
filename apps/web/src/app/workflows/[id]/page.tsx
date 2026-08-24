@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { EvaluationPanel } from "@/components/EvaluationPanel";
+import { TestsPanel } from "@/components/TestsPanel";
 import { WorkflowGraph } from "@/components/WorkflowGraph";
 import { api } from "@/lib/api";
 import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
@@ -9,7 +10,13 @@ export const dynamic = "force-dynamic";
 
 export default async function WorkflowDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [workflow, validation, evaluations] = await Promise.all([api.workflow(id), api.validation(id), api.evaluations(id)]);
+  const [workflow, validation, evaluations, tests, testRuns] = await Promise.all([
+    api.workflow(id),
+    api.validation(id),
+    api.evaluations(id),
+    api.tests(id),
+    api.testRuns(id),
+  ]);
 
   return (
     <section className="px-5 py-7 lg:px-8">
@@ -64,6 +71,10 @@ export default async function WorkflowDetailPage({ params }: { params: { id: str
 
         <Panel title="AI Evaluation">
           <EvaluationPanel workflowId={workflow.id} initialEvaluations={evaluations} />
+        </Panel>
+
+        <Panel title="Tests">
+          <TestsPanel workflowId={workflow.id} initialTests={tests} initialRuns={testRuns} />
         </Panel>
 
         <Panel title="Source">

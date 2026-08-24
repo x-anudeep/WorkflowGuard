@@ -11,6 +11,9 @@ dependencies = [
   "python-magic>=0.4.27; platform_system != 'Windows'",
 ]
 
+[project.scripts]
+workflowguard = "workflow_core.cli:main"
+
 [project.optional-dependencies]
 test = [
   "pytest>=8.2.0",

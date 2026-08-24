@@ -50,6 +50,8 @@ class WorkflowRecord(Base):
         back_populates="workflow", cascade="all, delete-orphan"
     )
     evaluation_runs: Mapped[list[EvaluationRun]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
+    workflow_tests: Mapped[list[WorkflowTestRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
+    test_runs: Mapped[list[WorkflowTestRunRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
 
 
 class WorkflowVersion(Base):
@@ -237,3 +239,55 @@ class DimensionScoreRecord(Base):
     calculation: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
 
     run: Mapped[EvaluationRun] = relationship(back_populates="dimension_scores")
+
+
+class WorkflowTestRecord(Base):
+    __tablename__ = "workflow_tests"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_versions.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    generated_by: Mapped[str] = mapped_column(String(50), nullable=False)
+    input_data: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    mocked_integrations: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    failure_injections: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    expected_path: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    expected_outputs: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    expected_side_effects: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    forbidden_side_effects: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    assertions: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    expected_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tags: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    importance: Mapped[str] = mapped_column(String(50), nullable=False)
+    enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    linked_requirement_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column("metadata", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    workflow: Mapped[WorkflowRecord] = relationship(back_populates="workflow_tests")
+    runs: Mapped[list[WorkflowTestRunRecord]] = relationship(back_populates="test", cascade="all, delete-orphan")
+
+
+class WorkflowTestRunRecord(Base):
+    __tablename__ = "workflow_test_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    test_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_tests.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    execution_trace: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    assertion_results: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    failures: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    coverage: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    workflow: Mapped[WorkflowRecord] = relationship(back_populates="test_runs")
+    test: Mapped[WorkflowTestRecord] = relationship(back_populates="runs")

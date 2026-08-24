@@ -133,5 +133,121 @@ export type DashboardMetrics = {
   critical_issues: number;
   total_evaluation_runs: number;
   average_overall_score: number;
+  total_workflow_tests: number;
+  latest_test_coverage: number;
+  failing_test_runs: number;
   recent_workflows: WorkflowSummary[];
+};
+
+export type WorkflowAssertion = {
+  type: string;
+  target?: string | null;
+  expected?: unknown;
+  description?: string | null;
+};
+
+export type MockIntegration = {
+  node_id: string;
+  response?: unknown;
+  status_code?: number | null;
+  latency_ms: number;
+  error?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type FailureInjection = {
+  node_id: string;
+  failure_type: string;
+  occurrence: number;
+  metadata: Record<string, unknown>;
+};
+
+export type WorkflowTest = {
+  id: string;
+  workflow_id: string;
+  version_id?: string | null;
+  name: string;
+  description: string;
+  generated_by: string;
+  input_data: Record<string, unknown>;
+  mocked_integrations: MockIntegration[];
+  failure_injections: FailureInjection[];
+  expected_path: string[];
+  expected_outputs: Record<string, unknown>;
+  expected_side_effects: string[];
+  forbidden_side_effects: string[];
+  assertions: WorkflowAssertion[];
+  expected_error?: string | null;
+  tags: string[];
+  importance: string;
+  enabled: boolean;
+  rationale?: string | null;
+  linked_requirement_id?: string | null;
+  metadata: Record<string, unknown>;
+  latest_status?: string | null;
+  latest_run_id?: string | null;
+  latest_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssertionResult = {
+  assertion: WorkflowAssertion;
+  passed: boolean;
+  message: string;
+};
+
+export type Coverage = {
+  node_coverage: number;
+  edge_coverage: number;
+  branch_coverage: number;
+  requirement_coverage: number;
+  overall_coverage: number;
+  covered_nodes: string[];
+  covered_edges: string[];
+  covered_requirements: string[];
+  calculation: Record<string, unknown>;
+};
+
+export type WorkflowTestRun = {
+  id: string;
+  workflow_id: string;
+  version_id: string;
+  test_id: string;
+  status: string;
+  execution_trace: {
+    execution_order?: string[];
+    executed_edges?: string[];
+    node_executions?: Array<{
+      node_id: string;
+      node_name: string;
+      node_type: string;
+      status: string;
+      branch_decision?: string | null;
+      mocked: boolean;
+      retries: number;
+      latency_ms: number;
+      error?: string | null;
+    }>;
+    failures?: string[];
+    external_calls?: unknown[];
+    approval_requests?: string[];
+    token_estimate?: number;
+  };
+  assertion_results: AssertionResult[];
+  failures: string[];
+  duration_ms: number;
+  coverage?: Coverage | null;
+  created_at: string;
+};
+
+export type TestRunSummary = {
+  total_tests: number;
+  passed: number;
+  failed: number;
+  error: number;
+  skipped: number;
+  latest_coverage: number;
+  last_run_at?: string | null;
+  runs: WorkflowTestRun[];
 };
