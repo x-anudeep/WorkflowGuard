@@ -35,6 +35,10 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
   const dimensions = Object.fromEntries((latestEvaluation?.dimension_scores ?? []).map((score) => [score.dimension, score.score]));
   const securityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "security") ?? [];
   const reliabilityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "reliability") ?? [];
+  const testsHaveRun = testRuns.runs.length > 0;
+  const testsLabel = tests.length === 0 ? "No tests" : testsHaveRun ? `${testRuns.passed}/${testRuns.total_tests} passing` : `${tests.length} not run`;
+  const coverageLabel = testsHaveRun ? `${testRuns.latest_coverage.toFixed(0)}%` : "Not measured";
+  const displayPrompt = readablePrompt(workflow.source_prompt);
   const evaluationAttention = (latestEvaluation?.findings ?? [])
     .filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR")
     .slice(0, 4);
@@ -68,7 +72,14 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
 
       <div className="mt-7 grid gap-8">
         <Panel title="Overview">
-          <WorkflowAssessmentActions workflowId={workflow.id} hasEvaluation={Boolean(latestEvaluation)} hasTests={tests.length > 0} />
+          <WorkflowAssessmentActions
+            workflowId={workflow.id}
+            hasEvaluation={Boolean(latestEvaluation)}
+            hasTests={tests.length > 0}
+            hasTestRuns={testsHaveRun}
+            hasUsefulCost={cost.line_items.length > 0}
+            gateStatus={qualityGate?.status}
+          />
           <div className="mt-4 border border-line bg-white p-4">
             <div className="text-sm font-semibold">What the data means</div>
             <div className="mt-3 grid gap-3 text-sm text-slate-700 lg:grid-cols-2">
@@ -93,8 +104,8 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
             <StatusCard label="Matches requirement" value={scoreValue(dimensions.prompt_alignment)} tone={scoreCardTone(dimensions.prompt_alignment)} />
             <StatusCard label="Secure" value={scoreValue(dimensions.security)} tone={scoreCardTone(dimensions.security)} />
             <StatusCard label="Reliable" value={scoreValue(dimensions.reliability)} tone={scoreCardTone(dimensions.reliability)} />
-            <StatusCard label="Tests" value={`${testRuns.passed}/${testRuns.total_tests} passing`} tone={testRuns.total_tests === 0 || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
-            <StatusCard label="Coverage" value={`${testRuns.latest_coverage.toFixed(0)}%`} tone={testRuns.latest_coverage >= 85 ? "good" : "bad"} />
+            <StatusCard label="Tests" value={testsLabel} tone={!testsHaveRun || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
+            <StatusCard label="Coverage" value={coverageLabel} tone={testsHaveRun && testRuns.latest_coverage >= 85 ? "good" : "bad"} />
             <StatusCard label="Cost" value={`$${cost.monthly_cost.toFixed(2)}/mo`} />
             <StatusCard label="Quality gate" value={qualityGate?.status ?? "Not checked"} tone={qualityGate?.status === "PASS" ? "good" : "bad"} />
           </div>
@@ -103,8 +114,8 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
             <Stat label="Edges" value={workflow.canonical.edges.length.toString()} />
             <Stat label="Current version" value={workflow.current_version_id ?? "Unknown"} />
           </div>
-          {workflow.source_prompt && (
-            <div className="mt-4 border border-line bg-panel p-4 text-sm text-slate-700">{workflow.source_prompt}</div>
+          {displayPrompt && (
+            <div className="mt-4 border border-line bg-panel p-4 text-sm text-slate-700">{displayPrompt}</div>
           )}
           {(validationAttention.length > 0 || evaluationAttention.length > 0) && (
             <div className="mt-4 border border-danger bg-red-50 p-4">
@@ -262,6 +273,23 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
 
 function isUuid(value: string | undefined): value is string {
   return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
+}
+
+function readablePrompt(prompt: string | null | undefined): string | null {
+  if (!prompt) return null;
+  const trimmed = prompt.trim();
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (parsed && typeof parsed === "object" && "prompt" in parsed && typeof parsed.prompt === "string") {
+      return parsed.prompt;
+    }
+  } catch {
+    const match = trimmed.match(/"prompt"\s*:\s*"(?<prompt>.*)"\s*,?$/s);
+    if (match?.groups?.prompt) {
+      return match.groups.prompt.replace(/\\"/g, '"');
+    }
+  }
+  return trimmed;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
