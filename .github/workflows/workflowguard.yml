@@ -17,10 +17,10 @@ jobs:
     env:
       WORKFLOWGUARD_AI_PROVIDER: none
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install WorkflowGuard CLI
@@ -43,7 +43,7 @@ jobs:
             workflowguard report "$file" --format markdown > "workflowguard-reports/${safe_name}.md" || true
           done < changed-workflows.txt
           exit "$status"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: workflowguard-reports

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { CostPanel } from "@/components/CostPanel";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
@@ -11,8 +12,11 @@ import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function WorkflowDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!isUuid(id)) {
+    notFound();
+  }
   const [workflow, validation, evaluations, tests, testRuns, cost, comparison, repairs, qualityGate, history, versions] = await Promise.all([
     api.workflow(id),
     api.validation(id),
@@ -211,6 +215,10 @@ export default async function WorkflowDetailPage({ params }: { params: { id: str
       </div>
     </section>
   );
+}
+
+function isUuid(value: string | undefined): value is string {
+  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
