@@ -6,6 +6,7 @@ import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { RepairPanel } from "@/components/RepairPanel";
 import { TestsPanel } from "@/components/TestsPanel";
 import { VersionComparePanel } from "@/components/VersionComparePanel";
+import { WorkflowAssessmentActions } from "@/components/WorkflowAssessmentActions";
 import { WorkflowGraph } from "@/components/WorkflowGraph";
 import { api } from "@/lib/api";
 import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
@@ -33,6 +34,13 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
   const latestEvaluation = evaluations[0];
   const dimensions = Object.fromEntries((latestEvaluation?.dimension_scores ?? []).map((score) => [score.dimension, score.score]));
   const securityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "security") ?? [];
+  const reliabilityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "reliability") ?? [];
+  const missingEvidence = buildMissingEvidence({
+    hasEvaluation: Boolean(latestEvaluation),
+    hasTests: tests.length > 0,
+    hasTestRuns: testRuns.runs.length > 0,
+    hasUsefulCost: cost.line_items.length > 0,
+  });
   const attention = [
     ...(validation?.findings ?? []).filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR").slice(0, 3),
     ...(latestEvaluation?.findings ?? []).filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR").slice(0, 3),
@@ -56,7 +64,27 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
 
       <div className="mt-7 grid gap-8">
         <Panel title="Overview">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <WorkflowAssessmentActions workflowId={workflow.id} hasEvaluation={Boolean(latestEvaluation)} hasTests={tests.length > 0} />
+          <div className="mt-4 border border-line bg-white p-4">
+            <div className="text-sm font-semibold">What the data means</div>
+            <div className="mt-3 grid gap-3 text-sm text-slate-700 lg:grid-cols-2">
+              <Explanation
+                title="Why Structural Quality is 100"
+                body="The workflow graph itself is valid: node IDs are unique, edges point to real nodes, there is a start path and terminal path, and the graph is connected. This does not prove the workflow satisfies the prompt."
+              />
+              <Explanation
+                title="Why the Quality Gate fails"
+                body={qualityGate?.status === "PASS" ? "The latest stored checks meet the configured thresholds." : "The gate requires semantic evaluation, security/reliability scores, tests, coverage, and critical-test results. Missing evidence counts as failure because an untested or unevaluated workflow should not be trusted."}
+              />
+              {missingEvidence.map((item) => (
+                <Explanation key={item.title} title={item.title} body={item.body} />
+              ))}
+              {latestEvaluation && latestEvaluation.findings.length === 0 && (
+                <Explanation title="No semantic findings" body="The latest semantic evaluation did not find prompt-alignment, security, reliability, or maintainability issues. Re-run tests and gates after every workflow version change." />
+              )}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatusCard label="Valid" value={validation && validation.findings.every((finding) => finding.severity !== "ERROR" && finding.severity !== "CRITICAL") ? "Yes" : "Needs work"} />
             <StatusCard label="Matches requirement" value={dimensions.prompt_alignment ? `${dimensions.prompt_alignment.toFixed(0)}/100` : "Not evaluated"} />
             <StatusCard label="Secure" value={dimensions.security ? `${dimensions.security.toFixed(0)}/100` : "Not evaluated"} />
@@ -84,6 +112,16 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {latestEvaluation && (securityFindings.length > 0 || reliabilityFindings.length > 0) && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {reliabilityFindings.slice(0, 3).map((finding) => (
+                <FindingSummary key={`${finding.rule_id}-${finding.message}`} title={finding.title} severity={finding.severity} message={finding.message} />
+              ))}
+              {securityFindings.slice(0, 3).map((finding) => (
+                <FindingSummary key={`${finding.rule_id}-${finding.message}`} title={finding.title} severity={finding.severity} message={finding.message} />
+              ))}
             </div>
           )}
         </Panel>
@@ -247,4 +285,63 @@ function StatusCard({ label, value, tone = "neutral" }: { label: string; value: 
       <div className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</div>
     </div>
   );
+}
+
+function Explanation({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="border border-line bg-panel p-3">
+      <div className="font-semibold text-ink">{title}</div>
+      <p className="mt-1 leading-6">{body}</p>
+    </div>
+  );
+}
+
+function FindingSummary({ title, severity, message }: { title: string; severity: string; message: string }) {
+  return (
+    <div className="border border-line bg-white p-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="rounded-sm bg-panel px-2 py-1 text-xs font-semibold">{severity}</span>
+        <span className="font-semibold">{title}</span>
+      </div>
+      <p className="mt-2 text-sm text-slate-700">{message}</p>
+    </div>
+  );
+}
+
+function buildMissingEvidence({
+  hasEvaluation,
+  hasTests,
+  hasTestRuns,
+  hasUsefulCost,
+}: {
+  hasEvaluation: boolean;
+  hasTests: boolean;
+  hasTestRuns: boolean;
+  hasUsefulCost: boolean;
+}) {
+  const items: Array<{ title: string; body: string }> = [];
+  if (!hasEvaluation) {
+    items.push({
+      title: "Prompt match is unknown",
+      body: "No evaluation has checked whether the workflow actually does what the original requirement asked. A valid graph can still omit required systems, approvals, ordering, or business rules.",
+    });
+  }
+  if (!hasTests) {
+    items.push({
+      title: "No workflow tests exist",
+      body: "There are no generated or manual tests yet. WorkflowGuard cannot prove branch behavior, failure handling, edge cases, or requirement coverage until tests are generated.",
+    });
+  } else if (!hasTestRuns) {
+    items.push({
+      title: "Tests have not run",
+      body: "Tests exist but have no execution trace yet, so pass rate and coverage are not meaningful. Run tests to see branch decisions and assertion failures.",
+    });
+  }
+  if (!hasUsefulCost) {
+    items.push({
+      title: "Cost is only a baseline",
+      body: "A $0.00 monthly estimate usually means this workflow has no detected billable LLM/API/storage/email cost drivers or only tiny rounded costs. Add provider/model/API metadata or run a scenario for a more useful estimate.",
+    });
+  }
+  return items;
 }
