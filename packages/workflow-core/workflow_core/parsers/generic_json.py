@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from jsonschema import Draft202012Validator
 
@@ -65,8 +65,8 @@ GENERIC_WORKFLOW_SCHEMA: dict[str, Any] = {
 
 
 class GenericJSONParser(WorkflowParser):
-    format_name = SourceFormat.GENERIC_JSON.value
-    extensions = {".json"}
+    format_name: ClassVar[str] = SourceFormat.GENERIC_JSON.value
+    extensions: ClassVar[set[str]] = {".json"}
 
     def validate_source(self, content: bytes) -> bool:
         try:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 from workflow_core.canonical.models import SourceType, Workflow
 
@@ -15,8 +16,8 @@ class ParsedWorkflow:
 
 
 class WorkflowParser(ABC):
-    format_name: str
-    extensions: set[str]
+    format_name: ClassVar[str]
+    extensions: ClassVar[set[str]]
 
     def supports(self, filename: str, content: bytes, content_type: str | None = None) -> bool:
         suffix = Path(filename).suffix.lower()

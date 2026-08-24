@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 from lxml import etree
 
@@ -37,8 +38,8 @@ FLOW_NODE_TAGS = {
 
 
 class BPMNParser(WorkflowParser):
-    format_name = SourceFormat.BPMN.value
-    extensions = {".bpmn", ".xml"}
+    format_name: ClassVar[str] = SourceFormat.BPMN.value
+    extensions: ClassVar[set[str]] = {".bpmn", ".xml"}
 
     def validate_source(self, content: bytes) -> bool:
         try:

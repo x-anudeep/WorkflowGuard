@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import ClassVar
 
 from workflow_core.canonical.models import (
     Edge,
@@ -17,8 +18,8 @@ from workflow_core.parsers.security import safe_json_loads
 
 
 class N8NParser(WorkflowParser):
-    format_name = SourceFormat.N8N.value
-    extensions = {".json"}
+    format_name: ClassVar[str] = SourceFormat.N8N.value
+    extensions: ClassVar[set[str]] = {".json"}
 
     def validate_source(self, content: bytes) -> bool:
         try:
