@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     )
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     max_upload_bytes: int = 5 * 1024 * 1024
+    ai_provider: str = "none"
+    ai_api_key: str | None = None
+    ai_model: str = "gpt-4o-mini"
+    ai_timeout_seconds: float = 20.0
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="WORKFLOWGUARD_", extra="ignore")
 

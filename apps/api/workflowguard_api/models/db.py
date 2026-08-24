@@ -46,6 +46,10 @@ class WorkflowRecord(Base):
         back_populates="workflow", cascade="all, delete-orphan", foreign_keys="WorkflowVersion.workflow_id"
     )
     validation_runs: Mapped[list[ValidationRun]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
+    requirement_specs: Mapped[list[RequirementSpecificationRecord]] = relationship(
+        back_populates="workflow", cascade="all, delete-orphan"
+    )
+    evaluation_runs: Mapped[list[EvaluationRun]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
 
 
 class WorkflowVersion(Base):
@@ -148,3 +152,88 @@ class ValidationFindingRecord(Base):
     metadata_json: Mapped[dict] = mapped_column("metadata", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
 
     run: Mapped[ValidationRun] = relationship(back_populates="findings")
+
+
+class RequirementSpecificationRecord(Base):
+    __tablename__ = "requirement_specifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    source_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    extraction_method: Mapped[str] = mapped_column(String(100), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    spec_json: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), nullable=False)
+    model_provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    workflow: Mapped[WorkflowRecord] = relationship(back_populates="requirement_specs")
+    evaluation_runs: Mapped[list[EvaluationRun]] = relationship(back_populates="requirement_spec")
+
+
+class EvaluationRun(Base):
+    __tablename__ = "evaluation_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    requirement_spec_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("requirement_specifications.id"), nullable=True
+    )
+    validation_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("validation_runs.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="completed")
+    overall_score: Mapped[float] = mapped_column(Float, nullable=False)
+    structural_score: Mapped[float] = mapped_column(Float, nullable=False)
+    evaluator_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    ai_provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ai_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ai_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    limitations: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    requirement_matches: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    workflow: Mapped[WorkflowRecord] = relationship(back_populates="evaluation_runs")
+    requirement_spec: Mapped[RequirementSpecificationRecord | None] = relationship(back_populates="evaluation_runs")
+    findings: Mapped[list[EvaluationFindingRecord]] = relationship(back_populates="run", cascade="all, delete-orphan")
+    dimension_scores: Mapped[list[DimensionScoreRecord]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+
+class EvaluationFindingRecord(Base):
+    __tablename__ = "evaluation_findings"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("evaluation_runs.id"), nullable=False)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    dimension: Mapped[str] = mapped_column(String(100), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    expected: Mapped[str] = mapped_column(Text, nullable=False)
+    found: Mapped[str] = mapped_column(Text, nullable=False)
+    why_it_matters: Mapped[str] = mapped_column(Text, nullable=False)
+    node_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    edge_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    path_json: Mapped[list] = mapped_column("path", json_type(), default=list, nullable=False)
+    remediation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    metadata_json: Mapped[dict] = mapped_column("metadata", MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+
+    run: Mapped[EvaluationRun] = relationship(back_populates="findings")
+
+
+class DimensionScoreRecord(Base):
+    __tablename__ = "dimension_scores"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("evaluation_runs.id"), nullable=False)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    dimension: Mapped[str] = mapped_column(String(100), nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    calculation: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+
+    run: Mapped[EvaluationRun] = relationship(back_populates="dimension_scores")

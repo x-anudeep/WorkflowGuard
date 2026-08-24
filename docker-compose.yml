@@ -42,15 +42,14 @@ services:
       dockerfile: docker/web.Dockerfile
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-8000}/api
+      INTERNAL_API_BASE_URL: http://api:8000/api
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
       - api
     volumes:
       - ./apps/web:/app/apps/web
-      - /app/node_modules
-      - /app/apps/web/node_modules
-    command: npm --workspace apps/web run dev
+    command: sh -c "rm -rf /app/apps/web/.next && npm --workspace apps/web run dev"
 
 volumes:
   workflowguard_pg:

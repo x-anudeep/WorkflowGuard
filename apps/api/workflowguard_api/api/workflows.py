@@ -11,7 +11,12 @@ from workflowguard_api.db.session import get_db
 from workflowguard_api.models.db import ValidationRun, WorkflowRecord
 from workflowguard_api.schemas.workflows import (
     DashboardMetrics,
+    DimensionScoreRead,
+    EvaluationFindingRead,
+    EvaluationRequest,
+    EvaluationRunRead,
     GraphRead,
+    RequirementSpecRead,
     ValidationFindingRead,
     ValidationRunRead,
     WorkflowCreate,
@@ -19,6 +24,7 @@ from workflowguard_api.schemas.workflows import (
     WorkflowSummary,
     WorkflowVersionRead,
 )
+from workflowguard_api.services.evaluations import EvaluationNotFoundError, EvaluationService
 from workflowguard_api.services.workflows import WorkflowNotFoundError, WorkflowService
 
 router = APIRouter()
@@ -32,12 +38,16 @@ def health() -> dict[str, str]:
 @router.get("/dashboard", response_model=DashboardMetrics)
 def dashboard(db: Session = Depends(get_db)) -> DashboardMetrics:
     service = WorkflowService(db)
+    evaluation_service = EvaluationService(db)
     metrics = service.dashboard_metrics()
+    evaluation_metrics = evaluation_service.dashboard_metrics()
     return DashboardMetrics(
         total_workflows=metrics["total_workflows"],
         total_validation_runs=metrics["total_validation_runs"],
         average_structural_score=metrics["average_structural_score"],
         critical_issues=metrics["critical_issues"],
+        total_evaluation_runs=evaluation_metrics["total_evaluation_runs"],
+        average_overall_score=evaluation_metrics["average_overall_score"],
         recent_workflows=[_summary(record) for record in metrics["recent_workflows"]],
     )
 
@@ -137,6 +147,46 @@ def graph(workflow_id: UUID, db: Session = Depends(get_db)) -> GraphRead:
     )
 
 
+@router.post("/workflows/{workflow_id}/evaluate", response_model=EvaluationRunRead)
+def evaluate_workflow(
+    workflow_id: UUID,
+    payload: EvaluationRequest | None = None,
+    db: Session = Depends(get_db),
+) -> EvaluationRunRead:
+    try:
+        run = EvaluationService(db).evaluate(workflow_id, use_ai=payload.use_ai if payload else True)
+        return _evaluation_run(run)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/evaluations", response_model=list[EvaluationRunRead])
+def list_evaluations(workflow_id: UUID, db: Session = Depends(get_db)) -> list[EvaluationRunRead]:
+    try:
+        return [_evaluation_run(run) for run in EvaluationService(db).list_evaluations(workflow_id)]
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/evaluations/{evaluation_id}", response_model=EvaluationRunRead)
+def get_evaluation(workflow_id: UUID, evaluation_id: UUID, db: Session = Depends(get_db)) -> EvaluationRunRead:
+    try:
+        return _evaluation_run(EvaluationService(db).get_evaluation(workflow_id, evaluation_id))
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    except EvaluationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evaluation not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/requirements", response_model=RequirementSpecRead | None)
+def get_requirements(workflow_id: UUID, db: Session = Depends(get_db)) -> RequirementSpecRead | None:
+    try:
+        spec = EvaluationService(db).latest_requirements(workflow_id)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    return _requirement_spec(spec) if spec else None
+
+
 def _summary(record: WorkflowRecord) -> WorkflowSummary:
     latest = _latest_run(record)
     return WorkflowSummary(
@@ -191,4 +241,69 @@ def _validation_run(run: ValidationRun) -> ValidationRunRead:
             )
             for finding in run.findings
         ],
+    )
+
+
+def _requirement_spec(spec) -> RequirementSpecRead:
+    return RequirementSpecRead(
+        id=spec.id,
+        workflow_id=spec.workflow_id,
+        version_id=spec.version_id,
+        source_prompt=spec.source_prompt,
+        extraction_method=spec.extraction_method,
+        confidence=spec.confidence,
+        spec=spec.spec_json,
+        model_provider=spec.model_provider,
+        model_name=spec.model_name,
+        created_at=spec.created_at,
+    )
+
+
+def _evaluation_run(run) -> EvaluationRunRead:
+    return EvaluationRunRead(
+        id=run.id,
+        workflow_id=run.workflow_id,
+        version_id=run.version_id,
+        requirement_spec_id=run.requirement_spec_id,
+        validation_run_id=run.validation_run_id,
+        status=run.status,
+        overall_score=run.overall_score,
+        structural_score=run.structural_score,
+        evaluator_version=run.evaluator_version,
+        ai_provider=run.ai_provider,
+        ai_model=run.ai_model,
+        ai_metadata=run.ai_metadata,
+        limitations=run.limitations,
+        requirement_matches=run.requirement_matches,
+        dimension_scores=[
+            DimensionScoreRead(
+                dimension=score.dimension,
+                score=score.score,
+                explanation=score.explanation,
+                calculation=score.calculation,
+            )
+            for score in sorted(run.dimension_scores, key=lambda item: item.dimension)
+        ],
+        findings=[
+            EvaluationFindingRead(
+                id=finding.id,
+                rule_id=finding.rule_id,
+                dimension=finding.dimension,
+                severity=finding.severity,
+                title=finding.title,
+                message=finding.message,
+                expected=finding.expected,
+                found=finding.found,
+                why_it_matters=finding.why_it_matters,
+                node_id=finding.node_id,
+                edge_id=finding.edge_id,
+                path=finding.path_json,
+                remediation=finding.remediation,
+                confidence=finding.confidence,
+                metadata=finding.metadata_json,
+            )
+            for finding in run.findings
+        ],
+        requirement_spec=_requirement_spec(run.requirement_spec) if run.requirement_spec else None,
+        created_at=run.created_at,
     )

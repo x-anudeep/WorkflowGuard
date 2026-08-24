@@ -4,6 +4,8 @@ import { AlertTriangle, Gauge, GitBranch, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const metrics = await api.dashboard().catch(() => null);
 
@@ -30,6 +32,7 @@ export default async function DashboardPage() {
             <Metric icon={<ShieldCheck size={20} />} label="Validation runs" value={metrics.total_validation_runs.toString()} />
             <Metric icon={<Gauge size={20} />} label="Avg structural score" value={metrics.average_structural_score.toFixed(1)} />
             <Metric icon={<AlertTriangle size={20} />} label="Critical issues" value={metrics.critical_issues.toString()} />
+            <Metric icon={<Gauge size={20} />} label="Avg workflow score" value={metrics.average_overall_score.toFixed(1)} />
           </div>
 
           <div className="mt-8">

@@ -2,13 +2,15 @@
 
 WorkflowGuard is an AI-powered verification, testing, evaluation, cost-analysis, and observability platform for human-created and AI-generated workflows.
 
-Part 1 builds the deterministic foundation: upload BPMN 2.0 XML, generic JSON, or n8n JSON; parse into a canonical workflow graph; run static validation; persist versions and findings; inspect results in a developer-tool UI.
+Part 1 built the deterministic foundation: upload BPMN 2.0 XML, generic JSON, or n8n JSON; parse into a canonical workflow graph; run static validation; persist versions and findings; inspect results in a developer-tool UI.
+
+Part 2 adds the intelligence layer: prompt-to-requirement extraction, semantic prompt alignment, explainable scoring, reliability analysis, security analysis, maintainability analysis, and persisted evaluation history.
 
 ## Architecture
 
-- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, and structural scoring.
-- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload handling, REST API.
-- `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard and workflow inspection UI.
+- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, and scoring.
+- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation handling, REST API, provider-neutral AI adapters.
+- `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, and evaluation UI.
 - `examples`: valid and intentionally broken BPMN, generic JSON, and n8n workflows.
 - `docs`: architecture notes and roadmap context.
 
@@ -54,6 +56,7 @@ pip install -e packages/workflow-core -e apps/api[dev]
 pytest packages/workflow-core/tests apps/api/tests
 npm install
 npm run web:test
+npm run web:lint
 npm run web:build
 ```
 
@@ -73,6 +76,47 @@ Findings use severities: `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
 
 The score shown in the UI is explicitly a deterministic **Structural Quality Score**, not an AI quality score.
 
+## Semantic Evaluation
+
+Semantic evaluation is separate from static validation. WorkflowGuard first uses deterministic parsing and graph rules, then evaluates prompt alignment and risk dimensions:
+
+- Overall Workflow Score
+- Structural Validity
+- Prompt Alignment
+- Reliability
+- Security
+- Maintainability
+
+The evaluation response includes evidence for each important finding:
+
+- what was expected
+- what was found
+- why it matters
+- affected node, edge, or path where detectable
+- suggested correction
+- confidence
+
+When no AI provider is configured, WorkflowGuard still runs deterministic requirement extraction and all deterministic analyzers. No paid API call is required for normal development or tests.
+
+## AI Provider Configuration
+
+The backend uses a provider-neutral requirement extraction interface. The default is disabled:
+
+```bash
+WORKFLOWGUARD_AI_PROVIDER=none
+```
+
+To use OpenAI for structured requirement extraction:
+
+```bash
+WORKFLOWGUARD_AI_PROVIDER=openai
+WORKFLOWGUARD_AI_API_KEY=...
+WORKFLOWGUARD_AI_MODEL=gpt-4o-mini
+WORKFLOWGUARD_AI_TIMEOUT_SECONDS=20
+```
+
+AI responses are validated against the `RequirementSpec` schema before use. Provider errors, timeouts, malformed output, rate limits, and missing credentials fall back to deterministic extraction.
+
 ## Important Endpoints
 
 - `POST /api/workflows`
@@ -83,6 +127,10 @@ The score shown in the UI is explicitly a deterministic **Structural Quality Sco
 - `POST /api/workflows/{id}/validate`
 - `GET /api/workflows/{id}/validation`
 - `GET /api/workflows/{id}/graph`
+- `POST /api/workflows/{id}/evaluate`
+- `GET /api/workflows/{id}/evaluations`
+- `GET /api/workflows/{id}/evaluations/{evaluation_id}`
+- `GET /api/workflows/{id}/requirements`
 - `GET /api/dashboard`
 
 ## Environment Variables
@@ -93,14 +141,19 @@ The score shown in the UI is explicitly a deterministic **Structural Quality Sco
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
+- `WORKFLOWGUARD_AI_PROVIDER`
+- `WORKFLOWGUARD_AI_API_KEY`
+- `WORKFLOWGUARD_AI_MODEL`
+- `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`
 
 ## Current Limitations
 
-- No prompt-to-workflow semantic validation yet.
-- No LLM evaluation, AI repair, execution simulation, or cost estimation yet.
+- Semantic evaluation is static and best-effort; it does not prove runtime correctness.
+- The deterministic requirement extractor is intentionally conservative and can miss nuanced requirements without an AI provider.
+- No AI repair, execution simulation, or cost estimation yet.
 - BPMN diagram rendering is not enabled in the UI yet, but BPMN metadata is preserved for adding `bpmn-js`.
 - Authentication and multi-user project isolation are intentionally deferred.
 
 ## Roadmap
 
-Part 2 should add prompt alignment and AI evaluation over the canonical graph while preserving deterministic validation as the baseline.
+Part 3 should add automatic test generation and simulation over canonical workflows, using the deterministic and semantic findings as input.

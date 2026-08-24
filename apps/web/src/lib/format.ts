@@ -12,3 +12,7 @@ export function scoreTone(score: number | null): string {
 export function formatSourceFormat(value: string): string {
   return value.replace("_", " ").toUpperCase();
 }
+
+export function formatDimension(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}

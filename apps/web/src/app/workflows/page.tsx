@@ -3,6 +3,8 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatDate, formatSourceFormat, scoreTone } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkflowsPage() {
   const workflows = await api.workflows().catch(() => []);
 
