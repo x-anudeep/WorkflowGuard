@@ -31,8 +31,6 @@ services:
     startCommand: npm --workspace apps/web run start
     autoDeployTrigger: checksPass
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: NEXT_PUBLIC_API_BASE_URL
         value: https://workflowguard-api.onrender.com/api
       - key: INTERNAL_API_HOST

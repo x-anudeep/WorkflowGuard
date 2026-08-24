@@ -73,6 +73,8 @@ NEXT_PUBLIC_API_BASE_URL=https://YOUR_API_DOMAIN/api
 INTERNAL_API_BASE_URL=https://YOUR_API_DOMAIN/api
 ```
 
+Do not set `NODE_ENV=production` manually on Render for the frontend. Render applies environment variables during build; forcing `NODE_ENV=production` can cause npm to omit build-time packages before `next build` runs.
+
 For Render, `INTERNAL_API_HOST` and `INTERNAL_API_PORT` are used instead of `INTERNAL_API_BASE_URL` so server-rendered pages can call the API over Render's private network.
 
 ## Production Notes
