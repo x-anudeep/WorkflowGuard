@@ -35,16 +35,20 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
   const dimensions = Object.fromEntries((latestEvaluation?.dimension_scores ?? []).map((score) => [score.dimension, score.score]));
   const securityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "security") ?? [];
   const reliabilityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "reliability") ?? [];
+  const evaluationAttention = (latestEvaluation?.findings ?? [])
+    .filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR")
+    .slice(0, 4);
+  const validationAttention = (validation?.findings ?? [])
+    .filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR")
+    .slice(0, 3);
   const missingEvidence = buildMissingEvidence({
     hasEvaluation: Boolean(latestEvaluation),
     hasTests: tests.length > 0,
     hasTestRuns: testRuns.runs.length > 0,
     hasUsefulCost: cost.line_items.length > 0,
+    promptAlignment: dimensions.prompt_alignment,
+    qualityGateStatus: qualityGate?.status,
   });
-  const attention = [
-    ...(validation?.findings ?? []).filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR").slice(0, 3),
-    ...(latestEvaluation?.findings ?? []).filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR").slice(0, 3),
-  ].slice(0, 5);
 
   return (
     <section className="px-5 py-7 lg:px-8">
@@ -85,12 +89,12 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
             </div>
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatusCard label="Valid" value={validation && validation.findings.every((finding) => finding.severity !== "ERROR" && finding.severity !== "CRITICAL") ? "Yes" : "Needs work"} />
-            <StatusCard label="Matches requirement" value={dimensions.prompt_alignment ? `${dimensions.prompt_alignment.toFixed(0)}/100` : "Not evaluated"} />
-            <StatusCard label="Secure" value={dimensions.security ? `${dimensions.security.toFixed(0)}/100` : "Not evaluated"} />
-            <StatusCard label="Reliable" value={dimensions.reliability ? `${dimensions.reliability.toFixed(0)}/100` : "Not evaluated"} />
-            <StatusCard label="Tests" value={`${testRuns.passed}/${testRuns.total_tests} passing`} />
-            <StatusCard label="Coverage" value={`${testRuns.latest_coverage.toFixed(0)}%`} />
+            <StatusCard label="Valid" value={validation && validation.findings.every((finding) => finding.severity !== "ERROR" && finding.severity !== "CRITICAL") ? "Yes" : "Needs work"} tone={validationAttention.length ? "bad" : "good"} />
+            <StatusCard label="Matches requirement" value={scoreValue(dimensions.prompt_alignment)} tone={scoreCardTone(dimensions.prompt_alignment)} />
+            <StatusCard label="Secure" value={scoreValue(dimensions.security)} tone={scoreCardTone(dimensions.security)} />
+            <StatusCard label="Reliable" value={scoreValue(dimensions.reliability)} tone={scoreCardTone(dimensions.reliability)} />
+            <StatusCard label="Tests" value={`${testRuns.passed}/${testRuns.total_tests} passing`} tone={testRuns.total_tests === 0 || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
+            <StatusCard label="Coverage" value={`${testRuns.latest_coverage.toFixed(0)}%`} tone={testRuns.latest_coverage >= 85 ? "good" : "bad"} />
             <StatusCard label="Cost" value={`$${cost.monthly_cost.toFixed(2)}/mo`} />
             <StatusCard label="Quality gate" value={qualityGate?.status ?? "Not checked"} tone={qualityGate?.status === "PASS" ? "good" : "bad"} />
           </div>
@@ -102,14 +106,15 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
           {workflow.source_prompt && (
             <div className="mt-4 border border-line bg-panel p-4 text-sm text-slate-700">{workflow.source_prompt}</div>
           )}
-          {attention.length > 0 && (
+          {(validationAttention.length > 0 || evaluationAttention.length > 0) && (
             <div className="mt-4 border border-danger bg-red-50 p-4">
               <div className="text-sm font-semibold text-danger">Needs attention</div>
-              <div className="mt-2 grid gap-2">
-                {attention.map((finding) => (
-                  <div key={`${finding.rule_id}-${finding.message}`} className="text-sm text-slate-800">
-                    <span className="font-semibold">{finding.severity}</span> · {finding.title}
-                  </div>
+              <div className="mt-3 grid gap-3">
+                {validationAttention.map((finding) => (
+                  <ValidationAttentionCard key={`${finding.rule_id}-${finding.message}`} finding={finding} />
+                ))}
+                {evaluationAttention.map((finding) => (
+                  <EvaluationAttentionCard key={`${finding.rule_id}-${finding.message}`} finding={finding} />
                 ))}
               </div>
             </div>
@@ -277,14 +282,25 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusCard({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "good" | "bad" }) {
-  const toneClass = tone === "good" ? "text-success" : tone === "bad" ? "text-danger" : "text-ink";
+function StatusCard({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "good" | "bad" | "warn" }) {
+  const toneClass = tone === "good" ? "text-success" : tone === "bad" ? "text-danger" : tone === "warn" ? "text-warn" : "text-ink";
   return (
     <div className="border border-line bg-white p-4">
       <div className="text-xs uppercase text-slate-500">{label}</div>
       <div className={`mt-2 text-lg font-semibold ${toneClass}`}>{value}</div>
     </div>
   );
+}
+
+function scoreValue(score: unknown): string {
+  return typeof score === "number" ? `${score.toFixed(0)}/100` : "Not evaluated";
+}
+
+function scoreCardTone(score: unknown): "neutral" | "good" | "warn" | "bad" {
+  if (typeof score !== "number") return "bad";
+  if (score >= 85) return "good";
+  if (score >= 65) return "warn";
+  return "bad";
 }
 
 function Explanation({ title, body }: { title: string; body: string }) {
@@ -308,16 +324,75 @@ function FindingSummary({ title, severity, message }: { title: string; severity:
   );
 }
 
+function ValidationAttentionCard({ finding }: { finding: { severity: string; rule_id: string; title: string; message: string; remediation?: string | null; node_id?: string | null; edge_id?: string | null } }) {
+  return (
+    <div className="border border-danger bg-white p-4 text-sm">
+      <div className="font-semibold text-danger">{finding.severity} · {finding.rule_id} · {finding.title}</div>
+      <p className="mt-2 text-slate-700">{finding.message}</p>
+      {(finding.node_id || finding.edge_id) && <p className="mt-2 text-slate-600">Location: {finding.node_id ?? finding.edge_id}</p>}
+      {finding.remediation && <p className="mt-2 text-slate-700">Fix: {finding.remediation}</p>}
+    </div>
+  );
+}
+
+function EvaluationAttentionCard({
+  finding,
+}: {
+  finding: {
+    severity: string;
+    rule_id: string;
+    dimension: string;
+    title: string;
+    message: string;
+    expected: string;
+    found: string;
+    why_it_matters: string;
+    remediation?: string | null;
+    node_id?: string | null;
+    path?: string[];
+  };
+}) {
+  return (
+    <details className="border border-danger bg-white p-4 text-sm" open>
+      <summary className="cursor-pointer font-semibold text-danger">
+        {finding.severity} · {finding.rule_id} · {finding.title}
+      </summary>
+      <div className="mt-3 grid gap-2 text-slate-700 md:grid-cols-2">
+        <InfoField label="Problem" value={finding.message} />
+        <InfoField label="Expected" value={finding.expected} />
+        <InfoField label="Found" value={finding.found} />
+        <InfoField label="Why it matters" value={finding.why_it_matters} />
+        {finding.node_id && <InfoField label="Node" value={finding.node_id} />}
+        {finding.path && finding.path.length > 0 && <InfoField label="Path" value={finding.path.join(" -> ")} />}
+        {finding.remediation && <InfoField label="Fix" value={finding.remediation} />}
+      </div>
+    </details>
+  );
+}
+
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+      <div className="mt-1 leading-6">{value}</div>
+    </div>
+  );
+}
+
 function buildMissingEvidence({
   hasEvaluation,
   hasTests,
   hasTestRuns,
   hasUsefulCost,
+  promptAlignment,
+  qualityGateStatus,
 }: {
   hasEvaluation: boolean;
   hasTests: boolean;
   hasTestRuns: boolean;
   hasUsefulCost: boolean;
+  promptAlignment: unknown;
+  qualityGateStatus?: string;
 }) {
   const items: Array<{ title: string; body: string }> = [];
   if (!hasEvaluation) {
@@ -341,6 +416,18 @@ function buildMissingEvidence({
     items.push({
       title: "Cost is only a baseline",
       body: "A $0.00 monthly estimate usually means this workflow has no detected billable LLM/API/storage/email cost drivers or only tiny rounded costs. Add provider/model/API metadata or run a scenario for a more useful estimate.",
+    });
+  }
+  if (typeof promptAlignment === "number" && promptAlignment < 90) {
+    items.push({
+      title: "Prompt alignment is below the gate",
+      body: `The latest evaluation scored prompt alignment at ${promptAlignment.toFixed(0)}/100. Open the attention cards or AI Evaluation section to see which requested behaviors are missing or mismatched.`,
+    });
+  }
+  if (qualityGateStatus === "FAIL") {
+    items.push({
+      title: "This workflow should not be trusted yet",
+      body: "The gate is deliberately strict: if required semantic checks, tests, coverage, or critical findings are missing or failing, WorkflowGuard blocks trust even when the graph is structurally clean.",
     });
   }
   return items;
