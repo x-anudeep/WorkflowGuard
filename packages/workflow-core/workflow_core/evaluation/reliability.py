@@ -124,7 +124,7 @@ def _finding(
 def _has_failure_handling(workflow: Workflow, node_id: str) -> bool:
     related_edges = [edge for edge in workflow.edges if edge.source == node_id or edge.target == node_id]
     return any(
-        edge.label and any(term in edge.label.lower() for term in {"error", "failure", "fallback", "retry"})
-        or edge.condition and any(term in edge.condition.lower() for term in {"error", "failure", "fallback"})
+        edge.label and any(term in edge.label.lower() for term in ("error", "failure", "fallback", "retry"))
+        or edge.condition and any(term in edge.condition.lower() for term in ("error", "failure", "fallback"))
         for edge in related_edges
     )

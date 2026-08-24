@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from workflow_core.canonical.models import (
@@ -22,7 +23,7 @@ class N8NParser(WorkflowParser):
     def validate_source(self, content: bytes) -> bool:
         try:
             data = safe_json_loads(content)
-        except Exception:
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
             return False
         return isinstance(data, dict) and isinstance(data.get("nodes"), list) and isinstance(data.get("connections"), dict)
 
@@ -36,7 +37,7 @@ class N8NParser(WorkflowParser):
     ) -> ParsedWorkflow:
         try:
             data = safe_json_loads(content)
-        except Exception as exc:
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise WorkflowParseError(f"Malformed JSON: {exc}") from exc
         if not self.validate_source(content):
             raise WorkflowParseError("n8n workflow must include nodes[] and connections{}.")

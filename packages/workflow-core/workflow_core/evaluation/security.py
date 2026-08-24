@@ -161,4 +161,4 @@ def _has_auth(configuration: dict[str, Any]) -> bool:
 
 def _mentions_sensitive_data(workflow: Workflow) -> bool:
     text = " ".join([workflow.name, str(workflow.metadata)] + [node.name for node in workflow.nodes]).lower()
-    return any(term in text for term in {"invoice", "customer", "patient", "payment", "salary", "ssn", "personal"})
+    return any(term in text for term in ("invoice", "customer", "patient", "payment", "salary", "ssn", "personal"))

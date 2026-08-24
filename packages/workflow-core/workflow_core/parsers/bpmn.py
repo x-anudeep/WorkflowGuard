@@ -43,7 +43,7 @@ class BPMNParser(WorkflowParser):
     def validate_source(self, content: bytes) -> bool:
         try:
             root = safe_xml_root(content)
-        except Exception:
+        except (ValueError, etree.XMLSyntaxError):
             return False
         return etree.QName(root).localname == "definitions" and "BPMN" in etree.QName(root).namespace
 
@@ -57,7 +57,7 @@ class BPMNParser(WorkflowParser):
     ) -> ParsedWorkflow:
         try:
             root = safe_xml_root(content)
-        except Exception as exc:
+        except (ValueError, etree.XMLSyntaxError) as exc:
             raise WorkflowParseError(f"Malformed XML: {exc}") from exc
         if not self.validate_source(content):
             raise WorkflowParseError("XML document is not a BPMN 2.0 definitions document.")

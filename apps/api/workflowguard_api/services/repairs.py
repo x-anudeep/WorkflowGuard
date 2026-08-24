@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 from workflow_core.canonical.models import Workflow
+from workflow_core.costing import CostEstimator
 from workflow_core.evaluation import SemanticEvaluationEngine
 from workflow_core.repair import DeterministicRepairEngine, RepairPatch, RepairPatchApplier
 from workflow_core.testing import DeterministicTestGenerator, WorkflowTestRunner
@@ -139,7 +140,6 @@ class RepairService:
         for test in tests:
             runs.append(runner.run(candidate, test, all_tests=tests, prior_runs=runs))
         before_cost = self.cost_service._pricing_catalog()
-        from workflow_core.costing import CostEstimator
 
         estimate = CostEstimator(before_cost).estimate(candidate)
         return {

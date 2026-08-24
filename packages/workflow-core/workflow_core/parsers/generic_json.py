@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +71,7 @@ class GenericJSONParser(WorkflowParser):
     def validate_source(self, content: bytes) -> bool:
         try:
             data = safe_json_loads(content)
-        except Exception:
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
             return False
         return isinstance(data, dict) and "nodes" in data and "connections" not in data
 
@@ -84,7 +85,7 @@ class GenericJSONParser(WorkflowParser):
     ) -> ParsedWorkflow:
         try:
             data = safe_json_loads(content)
-        except Exception as exc:
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise WorkflowParseError(f"Malformed JSON: {exc}") from exc
 
         validator = Draft202012Validator(GENERIC_WORKFLOW_SCHEMA)

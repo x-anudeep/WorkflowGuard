@@ -92,7 +92,7 @@ class WorkflowSimulator:
             if queue:
                 result.status = TestRunStatus.ERROR
                 result.failures.append("Simulation stopped after reaching the maximum step limit.")
-        except Exception as exc:
+        except (RuntimeError, ValueError, TypeError, KeyError) as exc:
             result.status = TestRunStatus.ERROR
             result.failures.append(str(exc))
 
@@ -159,7 +159,7 @@ class WorkflowSimulator:
         matched = [edge for edge in conditional if evaluate_condition(edge.condition or "", state)]
         if matched:
             return matched[:1]
-        fallback = [edge for edge in edges if not edge.condition or str(edge.label).lower() in {"else", "default", "false", "no"}]
+        fallback = [edge for edge in edges if not edge.condition or str(edge.label).lower() in ("else", "default", "false", "no")]
         return fallback[:1]
 
 
@@ -195,7 +195,7 @@ def _value(token: str, state: dict[str, Any]) -> Any:
 
 
 def _field_name(token: str) -> str:
-    return token.split(".")[-1].strip()
+    return token.rsplit(".", maxsplit=1)[-1].strip()
 
 
 def _failure_execution(node: Node, state: dict[str, Any], failure: FailureInjection) -> NodeExecution:
