@@ -35,6 +35,26 @@ Then open:
 
 If ports are already in use, run for example `API_PORT=18000 WEB_PORT=3100 docker compose up --build` and use `http://localhost:18000/api` plus `http://localhost:3100`.
 
+## Hosting
+
+WorkflowGuard should be hosted as three resources: the Next.js frontend, the FastAPI backend, and PostgreSQL for durable workflow data.
+
+This repo includes a Render Blueprint:
+
+```bash
+render.yaml
+```
+
+It creates:
+
+- `workflowguard-web`: frontend
+- `workflowguard-api`: backend
+- `workflowguard-db`: PostgreSQL database
+
+The API runs Alembic migrations before startup. Uploaded workflows, workflow versions, validation/evaluation/test/cost/repair records, and audit history are stored in PostgreSQL. The frontend stores no durable workflow data.
+
+See [docs/deployment.md](docs/deployment.md) for the full deployment guide.
+
 ## Local Backend
 
 ```bash

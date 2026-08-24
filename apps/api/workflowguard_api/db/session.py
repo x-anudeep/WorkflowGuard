@@ -16,7 +16,8 @@ def _engine_kwargs(database_url: str) -> dict[str, object]:
     return {"pool_pre_ping": True}
 
 
-engine = create_engine(get_settings().database_url, **_engine_kwargs(get_settings().database_url))
+database_url = get_settings().sqlalchemy_database_url
+engine = create_engine(database_url, **_engine_kwargs(database_url))
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,6 +20,16 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = 20.0
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="WORKFLOWGUARD_", extra="ignore")
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """Return a SQLAlchemy URL that always uses the installed psycopg driver."""
+        parsed = urlsplit(self.database_url)
+        if parsed.scheme == "postgres":
+            return urlunsplit(parsed._replace(scheme="postgresql+psycopg"))
+        if parsed.scheme == "postgresql":
+            return urlunsplit(parsed._replace(scheme="postgresql+psycopg"))
+        return self.database_url
 
 
 @lru_cache

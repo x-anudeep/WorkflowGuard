@@ -1,0 +1,54 @@
+services:
+  - type: web
+    name: workflowguard-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./docker/api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: WORKFLOWGUARD_ENVIRONMENT
+        value: production
+      - key: WORKFLOWGUARD_DATABASE_URL
+        fromDatabase:
+          name: workflowguard-db
+          property: connectionString
+      - key: WORKFLOWGUARD_CORS_ORIGINS
+        value: '["https://workflowguard-web.onrender.com"]'
+      - key: WORKFLOWGUARD_AI_PROVIDER
+        value: none
+      - key: WORKFLOWGUARD_AI_MODEL
+        value: gpt-4o-mini
+      - key: WORKFLOWGUARD_AI_API_KEY
+        sync: false
+
+  - type: web
+    name: workflowguard-web
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run web:build
+    startCommand: npm --workspace apps/web run start
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://workflowguard-api.onrender.com/api
+      - key: INTERNAL_API_HOST
+        fromService:
+          name: workflowguard-api
+          type: web
+          property: host
+      - key: INTERNAL_API_PORT
+        fromService:
+          name: workflowguard-api
+          type: web
+          property: port
+
+databases:
+  - name: workflowguard-db
+    plan: free
+    databaseName: workflowguard
+    user: workflowguard
+    postgresMajorVersion: "16"

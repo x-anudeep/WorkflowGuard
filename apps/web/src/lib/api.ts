@@ -13,9 +13,20 @@ import type {
   WorkflowTest,
 } from "@/types/workflow";
 
+function serverApiBaseUrl(): string {
+  if (process.env.INTERNAL_API_BASE_URL) {
+    return process.env.INTERNAL_API_BASE_URL;
+  }
+  if (process.env.INTERNAL_API_HOST) {
+    const port = process.env.INTERNAL_API_PORT ? `:${process.env.INTERNAL_API_PORT}` : "";
+    return `http://${process.env.INTERNAL_API_HOST}${port}/api`;
+  }
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+}
+
 const API_BASE_URL =
   typeof window === "undefined"
-    ? process.env.INTERNAL_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"
+    ? serverApiBaseUrl()
     : process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
