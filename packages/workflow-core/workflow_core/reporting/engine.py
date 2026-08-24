@@ -37,8 +37,10 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     lines.append(f"- Cost/run: ${float(cost.get('cost_per_run') or 0):.4f}")
     lines.append(f"- Monthly: ${float(cost.get('monthly_cost') or 0):.2f}")
     lines.extend(["", "## Optimization Opportunities"])
-    for finding in report.get("optimization_findings") or []:
-        lines.append(f"- `{finding.get('rule_id')}` {finding.get('title')}: {finding.get('recommendation')}")
+    lines.extend(
+        f"- `{finding.get('rule_id')}` {finding.get('title')}: {finding.get('recommendation')}"
+        for finding in report.get("optimization_findings") or []
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -46,5 +48,7 @@ def _append_findings(lines: list[str], findings: list[dict[str, Any]]) -> None:
     if not findings:
         lines.append("- None recorded.")
         return
-    for finding in findings:
-        lines.append(f"- {finding.get('severity', 'INFO')} `{finding.get('rule_id')}` {finding.get('title')}: {finding.get('message')}")
+    lines.extend(
+        f"- {finding.get('severity', 'INFO')} `{finding.get('rule_id')}` {finding.get('title')}: {finding.get('message')}"
+        for finding in findings
+    )

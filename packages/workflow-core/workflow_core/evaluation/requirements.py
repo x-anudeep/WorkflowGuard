@@ -83,8 +83,7 @@ class DeterministicRequirementExtractor:
             if kind in {RequirementKind.ACTION, RequirementKind.APPROVAL, RequirementKind.INTEGRATION, RequirementKind.OUTPUT}:
                 order.append(item.id)
 
-            for constraint in _extract_constraints(clause):
-                constraints.append(constraint)
+            constraints.extend(_extract_constraints(clause))
 
         for pattern in PROHIBITED_PATTERNS:
             for match in re.finditer(pattern, prompt, flags=re.IGNORECASE):

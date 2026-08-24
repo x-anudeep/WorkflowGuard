@@ -75,11 +75,11 @@ def _path_assertions(path: list[str]) -> list[WorkflowAssertion]:
 
 
 def _default_mocks(workflow: Workflow) -> list[MockIntegration]:
-    mocks = []
-    for node in workflow.nodes:
-        if node.type in {NodeType.EXTERNAL_API, NodeType.DATABASE, NodeType.LLM, NodeType.EMAIL}:
-            mocks.append(MockIntegration(node_id=node.id, response={"ok": True, "node": node.id}, status_code=200))
-    return mocks
+    return [
+        MockIntegration(node_id=node.id, response={"ok": True, "node": node.id}, status_code=200)
+        for node in workflow.nodes
+        if node.type in {NodeType.EXTERNAL_API, NodeType.DATABASE, NodeType.LLM, NodeType.EMAIL}
+    ]
 
 
 def _branch_tests(workflow: Workflow) -> list[WorkflowTest]:

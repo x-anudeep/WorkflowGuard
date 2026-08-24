@@ -156,20 +156,18 @@ class OrphanNodeRule(ValidationRule):
     title = "Orphan node"
 
     def evaluate(self, workflow: Workflow, graph: nx.DiGraph) -> list[ValidationFinding]:
-        findings: list[ValidationFinding] = []
-        for node in workflow.nodes:
-            if len(workflow.nodes) > 1 and graph.in_degree(node.id) == 0 and graph.out_degree(node.id) == 0:
-                findings.append(
-                    ValidationFinding(
-                        rule_id=self.rule_id,
-                        severity=ValidationSeverity.ERROR,
-                        node_id=node.id,
-                        title=self.title,
-                        message="This node is disconnected from all workflow paths.",
-                        remediation="Connect this node or remove it.",
-                    )
-                )
-        return findings
+        return [
+            ValidationFinding(
+                rule_id=self.rule_id,
+                severity=ValidationSeverity.ERROR,
+                node_id=node.id,
+                title=self.title,
+                message="This node is disconnected from all workflow paths.",
+                remediation="Connect this node or remove it.",
+            )
+            for node in workflow.nodes
+            if len(workflow.nodes) > 1 and graph.in_degree(node.id) == 0 and graph.out_degree(node.id) == 0
+        ]
 
 
 class DeadEndRule(ValidationRule):
@@ -178,20 +176,18 @@ class DeadEndRule(ValidationRule):
 
     def evaluate(self, workflow: Workflow, graph: nx.DiGraph) -> list[ValidationFinding]:
         terminal_ids = workflow.terminal_node_ids
-        findings: list[ValidationFinding] = []
-        for node in workflow.nodes:
-            if graph.out_degree(node.id) == 0 and node.id not in terminal_ids and node.type != NodeType.END:
-                findings.append(
-                    ValidationFinding(
-                        rule_id=self.rule_id,
-                        severity=ValidationSeverity.WARNING,
-                        node_id=node.id,
-                        title=self.title,
-                        message="Execution can stop here without reaching an explicit terminal node.",
-                        remediation="Connect this node to a terminal node or mark it as an end node.",
-                    )
-                )
-        return findings
+        return [
+            ValidationFinding(
+                rule_id=self.rule_id,
+                severity=ValidationSeverity.WARNING,
+                node_id=node.id,
+                title=self.title,
+                message="Execution can stop here without reaching an explicit terminal node.",
+                remediation="Connect this node to a terminal node or mark it as an end node.",
+            )
+            for node in workflow.nodes
+            if graph.out_degree(node.id) == 0 and node.id not in terminal_ids and node.type != NodeType.END
+        ]
 
 
 class SuspiciousCycleRule(ValidationRule):
@@ -199,19 +195,17 @@ class SuspiciousCycleRule(ValidationRule):
     title = "Suspicious cycle"
 
     def evaluate(self, workflow: Workflow, graph: nx.DiGraph) -> list[ValidationFinding]:
-        findings: list[ValidationFinding] = []
-        for cycle in nx.simple_cycles(graph):
-            findings.append(
-                ValidationFinding(
-                    rule_id=self.rule_id,
-                    severity=ValidationSeverity.WARNING,
-                    title=self.title,
-                    message=f"Cycle detected: {' -> '.join(cycle)}.",
-                    remediation="Confirm the loop has a bounded exit condition.",
-                    metadata={"cycle": cycle},
-                )
+        return [
+            ValidationFinding(
+                rule_id=self.rule_id,
+                severity=ValidationSeverity.WARNING,
+                title=self.title,
+                message=f"Cycle detected: {' -> '.join(cycle)}.",
+                remediation="Confirm the loop has a bounded exit condition.",
+                metadata={"cycle": cycle},
             )
-        return findings
+            for cycle in nx.simple_cycles(graph)
+        ]
 
 
 class DisconnectedComponentsRule(ValidationRule):
@@ -241,7 +235,6 @@ class MissingConfigurationRule(ValidationRule):
     title = "Missing required node configuration"
 
     def evaluate(self, workflow: Workflow, graph: nx.DiGraph) -> list[ValidationFinding]:
-        findings: list[ValidationFinding] = []
         configurable_types = {
             NodeType.ACTION,
             NodeType.EXTERNAL_API,
@@ -250,19 +243,18 @@ class MissingConfigurationRule(ValidationRule):
             NodeType.TASK,
             NodeType.HUMAN_APPROVAL,
         }
-        for node in workflow.nodes:
-            if node.type in configurable_types and not node.configuration:
-                findings.append(
-                    ValidationFinding(
-                        rule_id=self.rule_id,
-                        severity=ValidationSeverity.WARNING,
-                        node_id=node.id,
-                        title=self.title,
-                        message="This executable node has no detectable configuration.",
-                        remediation="Add operation parameters, credentials references, schemas, or other required configuration.",
-                    )
-                )
-        return findings
+        return [
+            ValidationFinding(
+                rule_id=self.rule_id,
+                severity=ValidationSeverity.WARNING,
+                node_id=node.id,
+                title=self.title,
+                message="This executable node has no detectable configuration.",
+                remediation="Add operation parameters, credentials references, schemas, or other required configuration.",
+            )
+            for node in workflow.nodes
+            if node.type in configurable_types and not node.configuration
+        ]
 
 
 class InvalidConditionRule(ValidationRule):
@@ -270,20 +262,18 @@ class InvalidConditionRule(ValidationRule):
     title = "Invalid condition"
 
     def evaluate(self, workflow: Workflow, graph: nx.DiGraph) -> list[ValidationFinding]:
-        findings: list[ValidationFinding] = []
-        for edge in workflow.edges:
-            if edge.condition is not None and not edge.condition.strip():
-                findings.append(
-                    ValidationFinding(
-                        rule_id=self.rule_id,
-                        severity=ValidationSeverity.WARNING,
-                        edge_id=edge.id,
-                        title=self.title,
-                        message="This edge has an empty condition expression.",
-                        remediation="Remove the condition or provide a valid expression.",
-                    )
-                )
-        return findings
+        return [
+            ValidationFinding(
+                rule_id=self.rule_id,
+                severity=ValidationSeverity.WARNING,
+                edge_id=edge.id,
+                title=self.title,
+                message="This edge has an empty condition expression.",
+                remediation="Remove the condition or provide a valid expression.",
+            )
+            for edge in workflow.edges
+            if edge.condition is not None and not edge.condition.strip()
+        ]
 
 
 DEFAULT_RULES: list[ValidationRule] = [

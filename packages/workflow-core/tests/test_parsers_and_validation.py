@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from workflow_core.canonical.models import SourceFormat
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.registry import default_parser_registry

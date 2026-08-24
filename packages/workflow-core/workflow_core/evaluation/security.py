@@ -148,7 +148,7 @@ def _looks_like_reference(value: str) -> bool:
 
 
 def _first_url(configuration: dict[str, Any]) -> str | None:
-    for _key, value in _flatten(configuration).items():
+    for value in _flatten(configuration).values():
         text = str(value)
         if text.startswith(("http://", "https://")):
             return text
