@@ -1,0 +1,15 @@
+{
+  "name": "Workflow with cycle",
+  "nodes": [
+    { "id": "start", "name": "Start", "type": "trigger" },
+    { "id": "review", "name": "Review", "type": "human_approval", "configuration": { "approverRole": "qa" } },
+    { "id": "fix", "name": "Fix issue", "type": "action", "configuration": { "queue": "repairs" } },
+    { "id": "end", "name": "End", "type": "end" }
+  ],
+  "edges": [
+    { "source": "start", "target": "review" },
+    { "source": "review", "target": "fix", "condition": "approved == false" },
+    { "source": "fix", "target": "review" },
+    { "source": "review", "target": "end", "condition": "approved == true" }
+  ]
+}

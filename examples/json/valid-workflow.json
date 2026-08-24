@@ -1,0 +1,27 @@
+{
+  "name": "Valid approval workflow",
+  "metadata": { "domain": "procurement" },
+  "nodes": [
+    { "id": "start", "name": "Request submitted", "type": "trigger" },
+    {
+      "id": "approval",
+      "name": "Manager approval",
+      "type": "human_approval",
+      "configuration": { "approverRole": "manager" }
+    },
+    {
+      "id": "notify",
+      "name": "Notify requester",
+      "type": "external_api",
+      "provider": "slack",
+      "operation": "send_message",
+      "configuration": { "channel": "#requests" }
+    },
+    { "id": "end", "name": "Complete", "type": "end" }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start", "target": "approval" },
+    { "id": "e2", "source": "approval", "target": "notify", "condition": "approved == true" },
+    { "id": "e3", "source": "notify", "target": "end" }
+  ]
+}

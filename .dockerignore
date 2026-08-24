@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+node_modules
+apps/web/node_modules
+apps/web/.next
+.pytest_cache
+.ruff_cache
+__pycache__
+*.pyc
+.DS_Store

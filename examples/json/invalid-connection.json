@@ -1,0 +1,10 @@
+{
+  "name": "Workflow with invalid connection",
+  "nodes": [
+    { "id": "start", "name": "Start", "type": "trigger" },
+    { "id": "end", "name": "End", "type": "end" }
+  ],
+  "edges": [
+    { "source": "start", "target": "missing_node" }
+  ]
+}

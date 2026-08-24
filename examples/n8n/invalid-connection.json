@@ -1,0 +1,15 @@
+{
+  "name": "n8n invalid connection",
+  "nodes": [
+    { "id": "trigger", "name": "Manual Trigger", "type": "n8n-nodes-base.manualTrigger", "parameters": {} }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "Missing Node", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "n8n orphan",
+  "nodes": [
+    { "id": "trigger", "name": "Manual Trigger", "type": "n8n-nodes-base.manualTrigger", "parameters": {} },
+    { "id": "unused", "name": "Unused HTTP", "type": "n8n-nodes-base.httpRequest", "parameters": {} }
+  ],
+  "connections": {}
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Workflow with orphan node",
+  "nodes": [
+    { "id": "start", "name": "Start", "type": "trigger" },
+    { "id": "task", "name": "Do work", "type": "action", "configuration": { "kind": "demo" } },
+    { "id": "end", "name": "End", "type": "end" },
+    { "id": "orphan", "name": "Never used", "type": "action" }
+  ],
+  "edges": [
+    { "source": "start", "target": "task" },
+    { "source": "task", "target": "end" }
+  ]
+}

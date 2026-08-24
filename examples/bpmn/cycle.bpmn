@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Cycle" targetNamespace="https://workflowguard.dev/examples">
+  <bpmn:process id="Process_Cycle" name="BPMN cycle" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Review_1"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:task id="Fix_1"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Review_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Review_1" targetRef="Fix_1" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Fix_1" targetRef="Review_1" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Review_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

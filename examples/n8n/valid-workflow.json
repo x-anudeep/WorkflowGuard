@@ -1,0 +1,31 @@
+{
+  "name": "n8n valid workflow",
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": { "path": "orders", "httpMethod": "POST" }
+    },
+    {
+      "id": "http",
+      "name": "Create Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [260, 0],
+      "parameters": { "url": "https://example.invalid/tickets", "method": "POST" }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          { "node": "Create Ticket", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false
+}

@@ -1,0 +1,13 @@
+{
+  "name": "n8n cycle",
+  "nodes": [
+    { "id": "trigger", "name": "Manual Trigger", "type": "n8n-nodes-base.manualTrigger", "parameters": {} },
+    { "id": "if", "name": "IF", "type": "n8n-nodes-base.if", "parameters": { "conditions": {} } },
+    { "id": "http", "name": "HTTP", "type": "n8n-nodes-base.httpRequest", "parameters": { "url": "https://example.invalid" } }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[{ "node": "IF", "type": "main", "index": 0 }]] },
+    "IF": { "main": [[{ "node": "HTTP", "type": "main", "index": 0 }]] },
+    "HTTP": { "main": [[{ "node": "IF", "type": "main", "index": 0 }]] }
+  }
+}

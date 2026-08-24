@@ -1,0 +1,10 @@
+{
+  "name": "Workflow missing terminal",
+  "nodes": [
+    { "id": "start", "name": "Start", "type": "trigger" },
+    { "id": "task", "name": "Task", "type": "action", "configuration": { "step": 1 } }
+  ],
+  "edges": [
+    { "source": "start", "target": "task" }
+  ]
+}
