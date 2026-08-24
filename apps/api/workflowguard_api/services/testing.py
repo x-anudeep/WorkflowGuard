@@ -7,13 +7,25 @@ from sqlalchemy.orm import Session, selectinload
 from workflow_core.canonical.models import Workflow
 from workflow_core.evaluation import DeterministicRequirementExtractor
 from workflow_core.evaluation.models import RequirementSpec
-from workflow_core.testing import DeterministicTestGenerator, WorkflowTest, WorkflowTestRun, WorkflowTestRunner
+from workflow_core.testing import (
+    DeterministicTestGenerator,
+    WorkflowTest,
+    WorkflowTestRun,
+    WorkflowTestRunner,
+)
 from workflow_core.testing.models import TestGenerationResult
 
 from workflowguard_api.ai.providers import AIProviderError, AIProviderUnavailable
-from workflowguard_api.ai.test_generation import TestGenerationProvider, test_generation_provider_from_settings
+from workflowguard_api.ai.test_generation import (
+    TestGenerationProvider,
+    test_generation_provider_from_settings,
+)
 from workflowguard_api.core.config import get_settings
-from workflowguard_api.models.db import RequirementSpecificationRecord, WorkflowTestRecord, WorkflowTestRunRecord
+from workflowguard_api.models.db import (
+    RequirementSpecificationRecord,
+    WorkflowTestRecord,
+    WorkflowTestRunRecord,
+)
 from workflowguard_api.services.evaluations import EvaluationService
 from workflowguard_api.services.workflows import WorkflowService
 

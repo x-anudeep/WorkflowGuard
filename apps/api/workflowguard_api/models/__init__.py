@@ -1,5 +1,4 @@
 from workflowguard_api.models.db import (
-    Project,
     CostEstimateRecord,
     CostScenarioRecord,
     DimensionScoreRecord,
@@ -7,6 +6,7 @@ from workflowguard_api.models.db import (
     EvaluationRun,
     OptimizationFindingRecord,
     PricingCatalogRecord,
+    Project,
     RepairProposalRecord,
     RepairValidationResultRecord,
     RequirementSpecificationRecord,

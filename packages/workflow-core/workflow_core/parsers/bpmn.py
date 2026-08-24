@@ -4,11 +4,17 @@ from pathlib import Path
 
 from lxml import etree
 
-from workflow_core.canonical.models import Edge, Node, NodeType, SourceFormat, SourceType, Workflow
+from workflow_core.canonical.models import (
+    Edge,
+    Node,
+    NodeType,
+    SourceFormat,
+    SourceType,
+    Workflow,
+)
 from workflow_core.parsers.base import ParsedWorkflow, WorkflowParser
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.security import safe_xml_root
-
 
 BPMN_NS = {"bpmn": "http://www.omg.org/spec/BPMN/20100524/MODEL"}
 FLOW_NODE_TAGS = {

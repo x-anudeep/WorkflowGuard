@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from workflow_core.canonical.models import Node, NodeType, Workflow
-from workflow_core.costing.models import CostCategory, CostEstimate, CostLineItem, CostScenario, PricingEntry
+from workflow_core.costing.models import (
+    CostCategory,
+    CostEstimate,
+    CostLineItem,
+    CostScenario,
+    PricingEntry,
+)
 from workflow_core.costing.pricing import PricingCatalog
 
 

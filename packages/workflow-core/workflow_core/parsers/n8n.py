@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from workflow_core.canonical.models import Edge, Node, NodeType, SourceFormat, SourceType, Workflow
+from workflow_core.canonical.models import (
+    Edge,
+    Node,
+    NodeType,
+    SourceFormat,
+    SourceType,
+    Workflow,
+)
 from workflow_core.parsers.base import ParsedWorkflow, WorkflowParser
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.security import safe_json_loads

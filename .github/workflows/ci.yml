@@ -15,6 +15,7 @@ jobs:
       - run: pip install -e packages/workflow-core -e apps/api[dev]
       - run: pytest packages/workflow-core/tests apps/api/tests
       - run: ruff check apps/api packages/workflow-core
+      - run: ruff check apps/api packages/workflow-core --select I
 
   frontend:
     runs-on: ubuntu-latest

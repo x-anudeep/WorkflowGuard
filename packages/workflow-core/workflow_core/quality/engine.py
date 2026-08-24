@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from workflow_core.quality.models import QualityGateConfig, QualityGateReason, QualityGateResult
+from workflow_core.quality.models import (
+    QualityGateConfig,
+    QualityGateReason,
+    QualityGateResult,
+)
 
 
 class QualityGateEngine:

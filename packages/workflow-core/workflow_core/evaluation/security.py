@@ -4,8 +4,11 @@ import re
 from typing import Any
 
 from workflow_core.canonical.models import NodeType, ValidationSeverity, Workflow
-from workflow_core.evaluation.models import Confidence, EvaluationDimension, EvaluationFinding
-
+from workflow_core.evaluation.models import (
+    Confidence,
+    EvaluationDimension,
+    EvaluationFinding,
+)
 
 SECRET_KEYS = re.compile(r"(api[_-]?key|token|secret|password|private[_-]?key|credential)", re.IGNORECASE)
 SECRET_VALUE = re.compile(r"(sk-[A-Za-z0-9]{16,}|xox[baprs]-|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]+PRIVATE KEY-----)")

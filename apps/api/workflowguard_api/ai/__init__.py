@@ -8,19 +8,19 @@ from workflowguard_api.ai.providers import (
     StaticMockAIProvider,
     provider_from_settings,
 )
-from workflowguard_api.ai.test_generation import (
-    NoopTestGenerationProvider,
-    OpenAITestGenerationProvider,
-    StaticMockTestGenerationProvider,
-    TestGenerationProvider,
-    test_generation_provider_from_settings,
-)
 from workflowguard_api.ai.repair import (
     NoopRepairProvider,
     OpenAIRepairProvider,
     RepairProvider,
     StaticMockRepairProvider,
     repair_provider_from_settings,
+)
+from workflowguard_api.ai.test_generation import (
+    NoopTestGenerationProvider,
+    OpenAITestGenerationProvider,
+    StaticMockTestGenerationProvider,
+    TestGenerationProvider,
+    test_generation_provider_from_settings,
 )
 
 __all__ = [

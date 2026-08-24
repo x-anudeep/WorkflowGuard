@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from workflow_core.canonical.models import ValidationFinding, ValidationSeverity, Workflow
-
+from workflow_core.canonical.models import (
+    ValidationFinding,
+    ValidationSeverity,
+    Workflow,
+)
 
 PENALTIES = {
     ValidationSeverity.CRITICAL: 35,

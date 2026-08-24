@@ -4,7 +4,6 @@ from datetime import date
 
 from workflow_core.costing.models import CostCategory, PricingEntry, PricingUnit
 
-
 DEFAULT_PRICING_CATALOG = [
     PricingEntry(
         category=CostCategory.LLM,

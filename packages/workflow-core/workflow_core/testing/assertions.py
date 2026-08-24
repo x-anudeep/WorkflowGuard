@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from workflow_core.testing.models import AssertionResult, AssertionType, SimulationResult, WorkflowAssertion, WorkflowTest
+from workflow_core.testing.models import (
+    AssertionResult,
+    AssertionType,
+    SimulationResult,
+    WorkflowAssertion,
+    WorkflowTest,
+)
 
 
 class AssertionEngine:

@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections import Counter
 
 from workflow_core.canonical.models import ValidationSeverity, Workflow
-from workflow_core.evaluation.models import Confidence, EvaluationDimension, EvaluationFinding
+from workflow_core.evaluation.models import (
+    Confidence,
+    EvaluationDimension,
+    EvaluationFinding,
+)
 
 
 class MaintainabilityAnalyzer:

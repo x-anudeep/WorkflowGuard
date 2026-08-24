@@ -1,9 +1,19 @@
-from workflow_core.canonical.models import Edge, Node, NodeType, SourceFormat, SourceType, Workflow
-from workflow_core.evaluation import DeterministicRequirementExtractor, RequirementSpec, SemanticEvaluationEngine
+from workflow_core.canonical.models import (
+    Edge,
+    Node,
+    NodeType,
+    SourceFormat,
+    SourceType,
+    Workflow,
+)
+from workflow_core.evaluation import (
+    DeterministicRequirementExtractor,
+    RequirementSpec,
+    SemanticEvaluationEngine,
+)
 from workflow_core.evaluation.alignment import AlignmentAnalyzer
 from workflow_core.evaluation.reliability import ReliabilityAnalyzer
 from workflow_core.evaluation.security import SecurityAnalyzer
-
 
 PROMPT = (
     "Read invoices from Gmail, extract invoice information, require human approval when the amount exceeds $10,000, "

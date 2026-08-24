@@ -5,11 +5,17 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-from workflow_core.canonical.models import Edge, Node, NodeType, SourceFormat, SourceType, Workflow
+from workflow_core.canonical.models import (
+    Edge,
+    Node,
+    NodeType,
+    SourceFormat,
+    SourceType,
+    Workflow,
+)
 from workflow_core.parsers.base import ParsedWorkflow, WorkflowParser
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.security import safe_json_loads
-
 
 GENERIC_WORKFLOW_SCHEMA: dict[str, Any] = {
     "type": "object",

@@ -3,7 +3,11 @@ from __future__ import annotations
 import networkx as nx
 
 from workflow_core.canonical.models import NodeType, ValidationSeverity, Workflow
-from workflow_core.evaluation.models import Confidence, EvaluationDimension, EvaluationFinding
+from workflow_core.evaluation.models import (
+    Confidence,
+    EvaluationDimension,
+    EvaluationFinding,
+)
 from workflow_core.validation.graph import build_directed_graph
 
 

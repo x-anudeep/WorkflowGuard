@@ -5,7 +5,11 @@ import uuid
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, selectinload
 from workflow_core.canonical.models import ValidationFinding, Workflow
-from workflow_core.evaluation import DeterministicRequirementExtractor, RequirementSpec, SemanticEvaluationEngine
+from workflow_core.evaluation import (
+    DeterministicRequirementExtractor,
+    RequirementSpec,
+    SemanticEvaluationEngine,
+)
 
 from workflowguard_api.ai.providers import (
     AIProviderError,

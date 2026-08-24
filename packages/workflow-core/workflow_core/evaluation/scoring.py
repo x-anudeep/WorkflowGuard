@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from collections import Counter
 
-from workflow_core.canonical.models import ValidationFinding, ValidationSeverity, Workflow
-from workflow_core.evaluation.models import DimensionScore, EvaluationDimension, EvaluationFinding
-
+from workflow_core.canonical.models import (
+    ValidationFinding,
+    ValidationSeverity,
+    Workflow,
+)
+from workflow_core.evaluation.models import (
+    DimensionScore,
+    EvaluationDimension,
+    EvaluationFinding,
+)
 
 PENALTIES = {
     ValidationSeverity.CRITICAL: 35,

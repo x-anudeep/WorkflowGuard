@@ -10,7 +10,12 @@ from workflow_core.canonical.models import Workflow
 from workflow_core.evaluation.models import RequirementSpec
 from workflow_core.testing.models import TestGenerationResult
 
-from workflowguard_api.ai.providers import AIProviderError, AIProviderUnavailable, MalformedAIResponse, _extract_response_text
+from workflowguard_api.ai.providers import (
+    AIProviderError,
+    AIProviderUnavailable,
+    MalformedAIResponse,
+    _extract_response_text,
+)
 from workflowguard_api.core.config import Settings
 
 

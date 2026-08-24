@@ -6,7 +6,6 @@ from workflow_core.cli import main
 from workflow_core.quality import QualityGateEngine
 from workflow_core.reporting import render_markdown_report
 
-
 ROOT = Path(__file__).resolve().parents[3]
 
 

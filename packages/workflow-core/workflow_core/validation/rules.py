@@ -5,7 +5,12 @@ from collections import Counter
 
 import networkx as nx
 
-from workflow_core.canonical.models import NodeType, ValidationFinding, ValidationSeverity, Workflow
+from workflow_core.canonical.models import (
+    NodeType,
+    ValidationFinding,
+    ValidationSeverity,
+    Workflow,
+)
 from workflow_core.validation.graph import build_directed_graph
 
 

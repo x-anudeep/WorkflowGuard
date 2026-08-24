@@ -15,7 +15,12 @@ from workflow_core.costing import (
     PricingEntry,
 )
 
-from workflowguard_api.models.db import CostEstimateRecord, CostScenarioRecord, OptimizationFindingRecord, PricingCatalogRecord
+from workflowguard_api.models.db import (
+    CostEstimateRecord,
+    CostScenarioRecord,
+    OptimizationFindingRecord,
+    PricingCatalogRecord,
+)
 from workflowguard_api.services.workflows import WorkflowService
 
 

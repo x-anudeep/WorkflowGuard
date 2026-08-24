@@ -9,7 +9,12 @@ from pydantic import ValidationError
 from workflow_core.canonical.models import Workflow
 from workflow_core.repair import RepairPatch
 
-from workflowguard_api.ai.providers import AIProviderError, AIProviderUnavailable, MalformedAIResponse, _extract_response_text
+from workflowguard_api.ai.providers import (
+    AIProviderError,
+    AIProviderUnavailable,
+    MalformedAIResponse,
+    _extract_response_text,
+)
 from workflowguard_api.core.config import Settings
 
 

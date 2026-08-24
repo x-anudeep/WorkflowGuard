@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import re
 
-from workflow_core.evaluation.models import Confidence, RequirementConstraint, RequirementItem, RequirementKind, RequirementSpec
+from workflow_core.evaluation.models import (
+    Confidence,
+    RequirementConstraint,
+    RequirementItem,
+    RequirementKind,
+    RequirementSpec,
+)
 from workflow_core.evaluation.text import normalize_text
-
 
 ACTION_VERBS = {
     "read",

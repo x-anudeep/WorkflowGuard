@@ -1,8 +1,8 @@
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from workflowguard_api.core.config import get_settings
 from workflowguard_api.db.session import Base
 from workflowguard_api.models import db  # noqa: F401

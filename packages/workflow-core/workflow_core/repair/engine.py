@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from workflow_core.canonical.models import Node, NodeType, Workflow
-from workflow_core.repair.models import PatchOperation, RepairPatch, RepairPatchOperation
+from workflow_core.repair.models import (
+    PatchOperation,
+    RepairPatch,
+    RepairPatchOperation,
+)
 
 
 class DeterministicRepairEngine:
