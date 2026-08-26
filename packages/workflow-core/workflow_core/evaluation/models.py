@@ -14,6 +14,7 @@ class EvaluationDimension(StrEnum):
     STRUCTURAL = "structural"
     PROMPT_ALIGNMENT = "prompt_alignment"
     RELIABILITY = "reliability"
+    HALLUCINATION = "hallucination"
     SECURITY = "security"
     MAINTAINABILITY = "maintainability"
     COST_EFFICIENCY = "cost_efficiency"

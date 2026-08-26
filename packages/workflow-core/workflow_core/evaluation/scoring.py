@@ -20,11 +20,12 @@ PENALTIES = {
     ValidationSeverity.INFO: 2,
 }
 DIMENSION_WEIGHTS = {
-    EvaluationDimension.STRUCTURAL: 0.25,
-    EvaluationDimension.PROMPT_ALIGNMENT: 0.3,
+    EvaluationDimension.STRUCTURAL: 0.20,
+    EvaluationDimension.PROMPT_ALIGNMENT: 0.25,
     EvaluationDimension.RELIABILITY: 0.15,
-    EvaluationDimension.SECURITY: 0.2,
-    EvaluationDimension.MAINTAINABILITY: 0.1,
+    EvaluationDimension.HALLUCINATION: 0.15,
+    EvaluationDimension.SECURITY: 0.15,
+    EvaluationDimension.MAINTAINABILITY: 0.10,
 }
 
 
@@ -45,6 +46,7 @@ def dimension_scores(
     for dimension in [
         EvaluationDimension.PROMPT_ALIGNMENT,
         EvaluationDimension.RELIABILITY,
+        EvaluationDimension.HALLUCINATION,
         EvaluationDimension.SECURITY,
         EvaluationDimension.MAINTAINABILITY,
     ]:
