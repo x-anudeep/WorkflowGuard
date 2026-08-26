@@ -105,7 +105,7 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
             <StatusCard label="Matches requirement" value={scoreValue(dimensions.prompt_alignment)} tone={scoreCardTone(dimensions.prompt_alignment)} />
             <StatusCard label="Secure" value={scoreValue(dimensions.security)} tone={scoreCardTone(dimensions.security)} />
             <StatusCard label="Reliable" value={scoreValue(dimensions.reliability)} tone={scoreCardTone(dimensions.reliability)} />
-            <StatusCard label="Grounded" value={scoreValue(dimensions.hallucination)} tone={scoreCardTone(dimensions.hallucination)} />
+            <StatusCard label="Hallucination Rate" value={scoreValue(dimensions.hallucination)} tone={scoreCardTone(dimensions.hallucination)} />
             <StatusCard label="Tests" value={testsLabel} tone={!testsHaveRun || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
             <StatusCard label="Coverage" value={coverageLabel} tone={testsHaveRun && testRuns.latest_coverage >= 85 ? "good" : "bad"} />
             <StatusCard label="Cost" value={`$${cost.monthly_cost.toFixed(2)}/mo`} />
