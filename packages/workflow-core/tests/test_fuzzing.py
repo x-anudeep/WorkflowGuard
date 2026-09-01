@@ -217,15 +217,15 @@ def test_reliability_blends_static_and_measured_robustness() -> None:
     report = FuzzEngine().run(workflow, max_cases=200)
 
     score = _reliability(dimension_scores(workflow, 90, [], report.findings, report))
-    static_score = score.calculation["static_score"]
+    penalty_score = score.calculation["penalty_score"]
 
-    expected = round((1 - FUZZ_BLEND_WEIGHT) * static_score + FUZZ_BLEND_WEIGHT * report.robustness_score)
+    expected = round((1 - FUZZ_BLEND_WEIGHT) * penalty_score + FUZZ_BLEND_WEIGHT * report.robustness_score)
     assert score.score == expected
     assert score.calculation["fuzz_robustness"] == report.robustness_score
     assert score.calculation["fuzz_seed"] == report.seed
     assert score.calculation["fuzz_cases_exercised"] > 0
     # Measured fragility must actually pull the score below the static-only view.
-    assert score.score < static_score
+    assert score.score < penalty_score
 
 
 def test_unexercised_fuzz_report_does_not_inflate_reliability() -> None:

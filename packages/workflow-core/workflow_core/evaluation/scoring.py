@@ -87,23 +87,30 @@ def _has_fuzz_evidence(fuzz_report: FuzzReport | None) -> bool:
 
 
 def _blend_reliability(
-    static_score: int,
+    penalty_score: int,
     penalty: int,
     related: list[EvaluationFinding],
     fuzz_report: FuzzReport,
 ) -> tuple[int, str, dict[str, object]]:
-    """Weight statically declared error handling against what fuzzing actually observed."""
+    """Weight declared error handling against what fuzzing actually observed.
+
+    ``penalty_score`` is the findings-based score. Once a campaign has run it already
+    includes penalties for the WG-FUZZ findings, so a fragile workflow is marked down on
+    both terms. That is deliberate - an unhandled failure is both a defect to report and
+    a measured loss of robustness - but it means this is not a fuzz-free baseline, and
+    the field is named accordingly.
+    """
     fuzz_score = fuzz_report.robustness_score
-    blended = round((1 - FUZZ_BLEND_WEIGHT) * static_score + FUZZ_BLEND_WEIGHT * fuzz_score)
+    blended = round((1 - FUZZ_BLEND_WEIGHT) * penalty_score + FUZZ_BLEND_WEIGHT * fuzz_score)
     explanation = (
-        f"{round((1 - FUZZ_BLEND_WEIGHT) * 100)}% static analysis of declared error handling "
-        f"({static_score}) and {round(FUZZ_BLEND_WEIGHT * 100)}% measured survival across "
+        f"{round((1 - FUZZ_BLEND_WEIGHT) * 100)}% findings-based score ({penalty_score}, including "
+        f"fuzz findings) and {round(FUZZ_BLEND_WEIGHT * 100)}% measured survival across "
         f"{fuzz_report.exercised_cases} executed fuzz case(s) ({fuzz_score})."
     )
     calculation: dict[str, object] = {
         "penalty": penalty,
         "findings": _severity_counts(related),
-        "static_score": static_score,
+        "penalty_score": penalty_score,
         "fuzz_robustness": fuzz_score,
         "fuzz_cases": len(fuzz_report.results),
         "fuzz_cases_exercised": fuzz_report.exercised_cases,

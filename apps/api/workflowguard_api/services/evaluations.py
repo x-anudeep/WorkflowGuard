@@ -25,6 +25,7 @@ from workflowguard_api.models.db import (
     RequirementSpecificationRecord,
     WorkflowRecord,
 )
+from workflowguard_api.services.fuzzing import FuzzService
 from workflowguard_api.services.workflows import WorkflowService
 
 
@@ -54,11 +55,15 @@ class EvaluationService:
             _validation_finding_to_core(finding)
             for finding in validation_run.findings
         ]
+        # Reliability blends measured fuzz survival with static analysis when a campaign
+        # exists for this exact version; without one the score stays purely static.
+        fuzz_report = FuzzService(self.db).report_for_evaluation(record.id, version.id)
         result = self.engine.evaluate(
             workflow,
             structural_score=round(validation_run.structural_quality_score),
             validation_findings=validation_findings,
             requirement_spec=spec,
+            fuzz_report=fuzz_report,
         )
         result.ai_metadata.update(ai_metadata)
         result.ai_provider = ai_provider_name

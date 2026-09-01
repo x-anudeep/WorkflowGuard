@@ -76,6 +76,10 @@ class FuzzReport(BaseModel):
     seed: int = 0
     results: list[FuzzCaseResult] = Field(default_factory=list)
     counts: dict[str, int] = Field(default_factory=dict)
+    #: Cases that actually perturbed the workflow - the robustness denominator. Stored
+    #: rather than derived so a report rehydrated from the database without its
+    #: individual cases still reports what it measured.
+    exercised_cases: int = 0
     robustness_score: int = 100
     findings: list[EvaluationFinding] = Field(default_factory=list)
     generated_by: TestGeneratedBy = TestGeneratedBy.SYSTEM
@@ -86,12 +90,3 @@ class FuzzReport(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = ConfigDict(use_enum_values=True)
-
-    @property
-    def exercised_cases(self) -> int:
-        """Cases that actually perturbed execution, i.e. the robustness denominator."""
-        return sum(
-            1
-            for result in self.results
-            if ErrorHandlingVerdict(result.verdict) != ErrorHandlingVerdict.NOT_TRIGGERED
-        )

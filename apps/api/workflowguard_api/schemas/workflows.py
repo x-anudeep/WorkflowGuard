@@ -324,6 +324,53 @@ class TestRunSummary(BaseModel):
     runs: list[WorkflowTestRunRead]
 
 
+class FuzzCaseRead(BaseModel):
+    id: UUID
+    case_id: str
+    name: str
+    description: str
+    strategy: str
+    verdict: str
+    observed: str
+    generated_by: str
+    seed: int
+    input_data: dict[str, Any] = Field(default_factory=dict)
+    failure_injections: list[dict[str, Any]] = Field(default_factory=list)
+    targeted_node_ids: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    execution_trace: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class FuzzRunRead(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    version_id: UUID
+    seed: int
+    total_cases: int
+    exercised_cases: int
+    handled: int
+    unhandled_crash: int
+    silent_success: int
+    hung: int
+    not_triggered: int
+    robustness_score: int
+    generated_by: str
+    ai_provider: str | None = None
+    ai_model: str | None = None
+    ai_metadata: dict[str, Any] = Field(default_factory=dict)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    created_at: datetime
+    cases: list[FuzzCaseRead] = Field(default_factory=list)
+
+
+class FuzzRunRequest(BaseModel):
+    use_ai: bool = True
+    seed: int | None = None
+    max_cases: int | None = Field(default=None, ge=1, le=500)
+
+
 class PricingEntryCreate(BaseModel):
     category: str
     provider: str

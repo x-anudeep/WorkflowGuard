@@ -77,12 +77,18 @@ class FuzzEngine:
             self._run_case(workflow, case, baseline, edges_by_id, nodes_by_id) for case in cases
         ]
         counts = Counter(str(result.verdict) for result in results)
+        exercised = sum(
+            1
+            for result in results
+            if ErrorHandlingVerdict(result.verdict) != ErrorHandlingVerdict.NOT_TRIGGERED
+        )
 
         report = FuzzReport(
             workflow_id=workflow.id,
             seed=seed,
             results=results,
             counts={verdict.value: counts.get(verdict.value, 0) for verdict in ErrorHandlingVerdict},
+            exercised_cases=exercised,
             robustness_score=robustness_score(results),
             findings=fuzz_findings(workflow, results),
             generated_by=generated_by,

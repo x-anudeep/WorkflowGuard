@@ -55,6 +55,7 @@ class WorkflowRecord(Base):
     cost_estimates: Mapped[list[CostEstimateRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
     repair_proposals: Mapped[list[RepairProposalRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
     audit_events: Mapped[list[AuditEventRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
+    fuzz_runs: Mapped[list[FuzzRunRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
 
 
 class WorkflowVersion(Base):
@@ -294,6 +295,63 @@ class WorkflowTestRunRecord(Base):
 
     workflow: Mapped[WorkflowRecord] = relationship(back_populates="test_runs")
     test: Mapped[WorkflowTestRecord] = relationship(back_populates="runs")
+
+
+class FuzzRunRecord(Base):
+    __tablename__ = "fuzz_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False)
+    seed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    exercised_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    handled: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unhandled_crash: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    silent_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    hung: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    not_triggered: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    robustness_score: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    generated_by: Mapped[str] = mapped_column(String(50), nullable=False, default="SYSTEM")
+    ai_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ai_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ai_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    findings: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    limitations: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    workflow: Mapped[WorkflowRecord] = relationship(back_populates="fuzz_runs")
+    cases: Mapped[list[FuzzCaseRecord]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="FuzzCaseRecord.created_at"
+    )
+
+
+class FuzzCaseRecord(Base):
+    __tablename__ = "fuzz_cases"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fuzz_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("fuzz_runs.id"), nullable=False)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    strategy: Mapped[str] = mapped_column(String(50), nullable=False)
+    verdict: Mapped[str] = mapped_column(String(50), nullable=False)
+    observed: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    generated_by: Mapped[str] = mapped_column(String(50), nullable=False, default="SYSTEM")
+    seed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_data: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    failure_injections: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    targeted_node_ids: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    evidence: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    execution_trace: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    run: Mapped[FuzzRunRecord] = relationship(back_populates="cases")
+
+
+Index("ix_fuzz_runs_workflow_created", FuzzRunRecord.workflow_id, FuzzRunRecord.created_at)
+Index("ix_fuzz_cases_run_verdict", FuzzCaseRecord.fuzz_run_id, FuzzCaseRecord.verdict)
 
 
 class PricingCatalogRecord(Base):
