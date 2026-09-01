@@ -18,6 +18,7 @@ from workflow_core.fuzzing.models import (
     FuzzReport,
     FuzzStrategy,
 )
+from workflow_core.fuzzing.reachability import reaching_input
 from workflow_core.fuzzing.scoring import fuzz_findings, robustness_score
 from workflow_core.testing.generator import default_mocks
 from workflow_core.testing.models import (
@@ -128,8 +129,58 @@ class FuzzEngine:
     ) -> FuzzCaseResult:
         simulation = self.simulator.simulate(workflow, _as_test(workflow, case))
         verdict, observed, evidence = _classify(case, simulation, baseline, edges_by_id, nodes_by_id)
+
+        if verdict == ErrorHandlingVerdict.NOT_TRIGGERED and case.failure_injections:
+            # The targeted node sits behind a branch the default input does not satisfy.
+            # Solve the path conditions and try once more, so a case that describes a real
+            # attack is not discarded merely because we could not steer the run to it.
+            retried = self._retry_with_reaching_input(
+                workflow, case, baseline, edges_by_id, nodes_by_id
+            )
+            if retried is not None:
+                return retried
+
         return FuzzCaseResult(
             case=case,
+            verdict=verdict,
+            simulation=simulation,
+            observed=observed,
+            evidence=evidence,
+        )
+
+    def _retry_with_reaching_input(
+        self,
+        workflow: Workflow,
+        case: FuzzCase,
+        baseline: SimulationResult,
+        edges_by_id: dict[str, Edge],
+        nodes_by_id: dict[str, Node],
+    ) -> FuzzCaseResult | None:
+        """Re-run the case with inputs solved to reach its target, if that changes anything.
+
+        Returns None when the retry still does not fire, so the original NOT_TRIGGERED
+        result stands rather than being replaced by an equally empty one.
+        """
+        targets = [injection.node_id for injection in case.failure_injections]
+        steered = dict(case.input_data)
+        for node_id in targets:
+            steered.update(reaching_input(workflow, node_id, steered))
+        if steered == case.input_data:
+            return None
+
+        steered_case = case.model_copy(update={"input_data": steered})
+        simulation = self.simulator.simulate(workflow, _as_test(workflow, steered_case))
+        verdict, observed, evidence = _classify(
+            steered_case, simulation, baseline, edges_by_id, nodes_by_id
+        )
+        if verdict == ErrorHandlingVerdict.NOT_TRIGGERED:
+            return None
+
+        evidence.append(
+            "Inputs were derived from the branch conditions on the path to the targeted node."
+        )
+        return FuzzCaseResult(
+            case=steered_case,
             verdict=verdict,
             simulation=simulation,
             observed=observed,

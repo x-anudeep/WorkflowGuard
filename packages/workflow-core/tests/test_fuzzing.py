@@ -16,6 +16,7 @@ from workflow_core.fuzzing import (
     robustness_score,
 )
 from workflow_core.fuzzing.models import FuzzCase, FuzzCaseResult
+from workflow_core.fuzzing.reachability import path_to, reaching_input
 from workflow_core.testing.models import SimulationResult, TestRunStatus
 
 
@@ -248,3 +249,68 @@ def test_unexercised_fuzz_report_does_not_inflate_reliability() -> None:
     plain = _reliability(dimension_scores(workflow, 90, [], []))
     assert blended.score == plain.score
     assert "fuzz_robustness" not in blended.calculation
+
+
+def _gated_workflow() -> Workflow:
+    """The payment sits behind a threshold branch the default input does not satisfy."""
+    return Workflow(
+        name="Gated payment",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="check", name="Large invoice?", type=NodeType.CONDITION),
+            Node(id="small", name="Auto approve", type=NodeType.ACTION),
+            Node(id="pay", name="Charge Card", type=NodeType.EXTERNAL_API),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="start", target="check"),
+            Edge(id="e2", source="check", target="pay", condition="invoice.amount > 50000"),
+            Edge(id="e3", source="check", target="small", condition="invoice.amount <= 50000"),
+            Edge(id="e4", source="pay", target="end"),
+            Edge(id="e5", source="small", target="end"),
+        ],
+    )
+
+
+def test_reaching_input_solves_the_branch_conditions_on_the_path() -> None:
+    workflow = _gated_workflow()
+    path = path_to(workflow, "pay")
+
+    assert path is not None
+    assert [edge.id for edge in path] == ["e1", "e2"]
+    # `amount` is read by its last path segment, matching how the simulator resolves it.
+    assert reaching_input(workflow, "pay", {"approved": True}) == {"approved": True, "amount": 50001}
+
+
+def test_reaching_input_returns_the_base_when_the_node_is_unreachable() -> None:
+    workflow = _gated_workflow()
+    workflow.nodes.append(Node(id="orphan", name="Orphan", type=NodeType.EXTERNAL_API))
+
+    assert path_to(workflow, "orphan") is None
+    assert reaching_input(workflow, "orphan", {"approved": True}) == {"approved": True}
+
+
+def test_failure_behind_a_branch_is_measured_instead_of_discarded() -> None:
+    """Without steering, every fault on `pay` would be NOT_TRIGGERED and score nothing."""
+    workflow = _gated_workflow()
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    pay_results = [
+        result
+        for result in report.results
+        if result.case.failure_injections
+        and {injection.node_id for injection in result.case.failure_injections} == {"pay"}
+    ]
+    fired = [
+        result
+        for result in pay_results
+        if ErrorHandlingVerdict(result.verdict) != ErrorHandlingVerdict.NOT_TRIGGERED
+    ]
+
+    assert pay_results
+    assert fired, "the reachability retry should have steered execution to the gated node"
+    assert any(
+        "derived from the branch conditions" in " ".join(result.evidence) for result in fired
+    )
+    assert report.exercised_cases > 0
