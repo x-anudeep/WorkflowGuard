@@ -46,18 +46,69 @@ def _guarded_workflow() -> Workflow:
     return workflow
 
 
-def test_unhandled_dependency_failure_is_detected_and_scored() -> None:
+def test_unchecked_dependency_failure_is_reported_as_silent() -> None:
+    """Nothing inspects the failed call, so the run finishes green having done nothing."""
     report = FuzzEngine().run(_unguarded_workflow(), max_cases=200)
 
-    assert report.counts[ErrorHandlingVerdict.UNHANDLED_CRASH.value] > 0
+    assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] > 0
     assert report.robustness_score < 100
+    silent = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-002")
+    assert silent.dimension == EvaluationDimension.RELIABILITY
+    assert silent.severity == ValidationSeverity.ERROR
+    assert silent.node_id == "pay"
+    # The finding must carry enough to reproduce the exact case.
+    assert silent.metadata["fuzz_seed"] == report.seed
+    assert silent.metadata["fuzz_case_names"]
+
+
+def test_failure_with_nowhere_to_continue_is_an_unhandled_crash() -> None:
+    workflow = Workflow(
+        name="Terminal dependency",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="pay", name="Charge Card", type=NodeType.EXTERNAL_API),
+        ],
+        edges=[Edge(id="e1", source="start", target="pay")],
+    )
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.UNHANDLED_CRASH.value] > 0
     crash = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-001")
-    assert crash.dimension == EvaluationDimension.RELIABILITY
     assert crash.severity == ValidationSeverity.ERROR
     assert crash.node_id == "pay"
-    # The finding must carry enough to reproduce the exact case.
-    assert crash.metadata["fuzz_seed"] == report.seed
-    assert crash.metadata["fuzz_case_names"]
+
+
+def test_downstream_condition_can_handle_an_upstream_failure() -> None:
+    """The common real shape: the call runs, the next branch inspects the result."""
+    workflow = Workflow(
+        name="Checked payment",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(
+                id="pay",
+                name="Charge Card",
+                type=NodeType.EXTERNAL_API,
+                configuration={"saveOutputAs": "payResult"},
+            ),
+            Node(id="check", name="Check Payment", type=NodeType.CONDITION),
+            Node(id="alert", name="Notify Finance", type=NodeType.EMAIL),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="start", target="pay"),
+            Edge(id="e2", source="pay", target="check"),
+            Edge(id="e3", source="check", target="alert", condition="payResult.success == false"),
+            Edge(id="e4", source="check", target="end", condition="payResult.success == true"),
+            Edge(id="e5", source="alert", target="end"),
+        ],
+    )
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.HANDLED.value] > 0
+    assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] == 0
+    assert report.robustness_score == 100
 
 
 def test_declared_error_path_that_notifies_counts_as_handled() -> None:

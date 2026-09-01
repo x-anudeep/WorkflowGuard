@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 
 from workflow_core.analysis.failure_paths import is_failure_edge
-from workflow_core.canonical.models import Node, NodeType, Workflow
+from workflow_core.canonical.models import Edge, Node, NodeType, Workflow
 from workflow_core.evaluation.models import RequirementSpec
 from workflow_core.fuzzing.generator import (
     DEFAULT_MAX_CASES,
@@ -45,7 +46,9 @@ class FuzzEngine:
     """
 
     def __init__(self) -> None:
-        self.simulator = WorkflowSimulator()
+        # Fuzzing measures how a workflow behaves *past* the point of failure, so it
+        # needs the propagating simulator; stored test runs keep the strict one.
+        self.simulator = WorkflowSimulator(propagate_failures=True)
         self.generator = DeterministicFuzzGenerator()
 
     def run(
@@ -66,12 +69,12 @@ class FuzzEngine:
                 workflow, requirement_spec, seed=seed, max_cases=max_cases
             )
 
-        failure_edge_ids = {edge.id for edge in workflow.edges if is_failure_edge(edge)}
+        edges_by_id = {edge.id: edge for edge in workflow.edges}
         baseline = self._baseline(workflow)
 
         nodes_by_id = {node.id: node for node in workflow.nodes}
         results = [
-            self._run_case(workflow, case, baseline, failure_edge_ids, nodes_by_id) for case in cases
+            self._run_case(workflow, case, baseline, edges_by_id, nodes_by_id) for case in cases
         ]
         counts = Counter(str(result.verdict) for result in results)
 
@@ -88,6 +91,15 @@ class FuzzEngine:
             ai_metadata=dict(ai_metadata or {}),
             limitations=list(LIMITATIONS),
         )
+        if report.exercised_cases == 0:
+            # Say so out loud. A robustness of 100 that nothing exercised means "not
+            # measured", not "robust", and the two must never be read as the same thing.
+            report.limitations.insert(
+                0,
+                "No fuzz case perturbed this workflow, so its robustness is unmeasured "
+                "rather than proven. Check that the graph is connected and has external "
+                "dependencies to fail.",
+            )
         return report
 
     def _baseline(self, workflow: Workflow) -> SimulationResult:
@@ -105,11 +117,11 @@ class FuzzEngine:
         workflow: Workflow,
         case: FuzzCase,
         baseline: SimulationResult,
-        failure_edge_ids: set[str],
+        edges_by_id: dict[str, Edge],
         nodes_by_id: dict[str, Node],
     ) -> FuzzCaseResult:
         simulation = self.simulator.simulate(workflow, _as_test(workflow, case))
-        verdict, observed, evidence = _classify(case, simulation, baseline, failure_edge_ids, nodes_by_id)
+        verdict, observed, evidence = _classify(case, simulation, baseline, edges_by_id, nodes_by_id)
         return FuzzCaseResult(
             case=case,
             verdict=verdict,
@@ -150,7 +162,7 @@ def _classify(
     case: FuzzCase,
     simulation: SimulationResult,
     baseline: SimulationResult,
-    failure_edge_ids: set[str],
+    edges_by_id: dict[str, Edge],
     nodes_by_id: dict[str, Node],
 ) -> tuple[ErrorHandlingVerdict, str, list[str]]:
     """Decide what the workflow actually did with the perturbation.
@@ -168,9 +180,11 @@ def _classify(
         execution.error and execution.node_id in injected_node_ids
         for execution in simulation.node_executions
     )
-    took_failure_edge = any(edge_id in failure_edge_ids for edge_id in simulation.executed_edges)
-    if took_failure_edge:
-        evidence.append("Execution reached a declared error/compensation edge.")
+    handling_edge = _handling_edge(simulation, injected_node_ids, edges_by_id, nodes_by_id)
+    if handling_edge is not None:
+        evidence.append(
+            f"A branch inspecting the failed step was taken: {handling_edge.condition or handling_edge.label}."
+        )
 
     if TestRunStatus(simulation.status) == TestRunStatus.ERROR:
         if any(STEP_LIMIT_MARKER in failure for failure in simulation.failures):
@@ -194,7 +208,7 @@ def _classify(
 
     if fault_fired:
         recovery = _recovery_after_failure(simulation, injected_node_ids, nodes_by_id)
-        if recovery:
+        if handling_edge is not None and recovery:
             evidence.append(f"Recovery work ran after the failure: {', '.join(recovery)}.")
             return (
                 ErrorHandlingVerdict.HANDLED,
@@ -248,3 +262,68 @@ def _recovery_after_failure(
         and nodes_by_id[execution.node_id].type in RECOVERY_TYPES
         and not execution.error
     ]
+
+
+#: Generic state keys the simulator writes when a step fails. A branch testing one of
+#: these unqualified is reading the failure, whatever the failing step was called.
+_GENERIC_FAILURE_FIELDS = frozenset({"success", "ok", "error", "status", "statuscode", "status_code"})
+
+
+def _handling_edge(
+    simulation: SimulationResult,
+    injected_node_ids: set[str],
+    edges_by_id: dict[str, Edge],
+    nodes_by_id: dict[str, Node],
+) -> Edge | None:
+    """The edge, if any, on which the workflow reacted to *this* failure.
+
+    Reaching any error branch is not evidence of handling. A workflow whose OCR step
+    failed and which later takes an unrelated "vendor not found" branch has not handled
+    the OCR failure at all - crediting that would score a broken workflow as perfect.
+    An edge counts only when it is an error edge leaving the failed node itself, or a
+    branch whose condition actually reads the failed step's result.
+    """
+    failed = [
+        execution.node_id
+        for execution in simulation.node_executions
+        if execution.error and execution.node_id in injected_node_ids
+    ]
+    if not failed:
+        return None
+    output_variables = {
+        variable.lower()
+        for node_id in failed
+        if (variable := _output_variable(nodes_by_id.get(node_id))) is not None
+    }
+
+    for edge_id in simulation.executed_edges:
+        edge = edges_by_id.get(edge_id)
+        if edge is None or not is_failure_edge(edge):
+            continue
+        if edge.source in failed:
+            return edge
+        if _reads_failure(edge.condition, output_variables):
+            return edge
+    return None
+
+
+def _output_variable(node: Node | None) -> str | None:
+    if node is None:
+        return None
+    for key in ("saveOutputAs", "save_output_as", "outputVariable"):
+        value = node.configuration.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _reads_failure(condition: str | None, output_variables: set[str]) -> bool:
+    """Whether a branch condition inspects the failed step's result."""
+    if not condition:
+        return False
+    lowered = condition.lower()
+    if any(variable in lowered for variable in output_variables):
+        return True
+    # An unqualified `success == false` reads the generic marker the simulator wrote.
+    bare = re.findall(r"\b([a-z_][a-z0-9_]*)\s*(?:==|!=|<|>|<=|>=)", lowered)
+    return any(field in _GENERIC_FAILURE_FIELDS for field in bare)
