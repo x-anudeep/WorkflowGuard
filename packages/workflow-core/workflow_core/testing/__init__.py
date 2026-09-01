@@ -1,6 +1,6 @@
 from workflow_core.testing.assertions import AssertionEngine
 from workflow_core.testing.coverage import CoverageCalculator
-from workflow_core.testing.generator import DeterministicTestGenerator
+from workflow_core.testing.generator import DeterministicTestGenerator, default_mocks
 from workflow_core.testing.models import (
     AssertionResult,
     AssertionType,
@@ -28,6 +28,7 @@ __all__ = [
     "AssertionType",
     "CoverageCalculator",
     "CoverageResult",
+    "default_mocks",
     "DeterministicTestGenerator",
     "FailureInjection",
     "FailureType",

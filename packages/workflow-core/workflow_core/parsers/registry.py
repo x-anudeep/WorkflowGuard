@@ -8,6 +8,7 @@ from workflow_core.parsers.bpmn import BPMNParser
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.generic_json import GenericJSONParser
 from workflow_core.parsers.n8n import N8NParser
+from workflow_core.parsers.qubi import QubiParser
 from workflow_core.parsers.security import ALLOWED_EXTENSIONS, assert_safe_size
 
 
@@ -41,4 +42,6 @@ class ParserRegistry:
 
 
 def default_parser_registry() -> ParserRegistry:
-    return ParserRegistry([BPMNParser(), N8NParser(), GenericJSONParser()])
+    # QubiParser precedes GenericJSONParser: both accept .json, and the generic parser
+    # would match a qubi export while discarding its node data and branch conditions.
+    return ParserRegistry([BPMNParser(), N8NParser(), QubiParser(), GenericJSONParser()])

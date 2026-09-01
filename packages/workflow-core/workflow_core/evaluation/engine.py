@@ -9,6 +9,7 @@ from workflow_core.evaluation.reliability import ReliabilityAnalyzer
 from workflow_core.evaluation.requirements import DeterministicRequirementExtractor
 from workflow_core.evaluation.scoring import dimension_scores, overall_score
 from workflow_core.evaluation.security import SecurityAnalyzer
+from workflow_core.fuzzing.models import FuzzReport
 
 
 class SemanticEvaluationEngine:
@@ -27,6 +28,7 @@ class SemanticEvaluationEngine:
         structural_score: int,
         validation_findings: list[ValidationFinding],
         requirement_spec: RequirementSpec | None = None,
+        fuzz_report: FuzzReport | None = None,
     ) -> EvaluationResult:
         spec = requirement_spec
         if spec is None and workflow.source_prompt:
@@ -42,7 +44,9 @@ class SemanticEvaluationEngine:
         findings.extend(self.hallucination.analyze(workflow))
         findings.extend(self.security.analyze(workflow))
         findings.extend(self.maintainability.analyze(workflow))
-        scores = dimension_scores(workflow, structural_score, validation_findings, findings)
+        if fuzz_report is not None:
+            findings.extend(fuzz_report.findings)
+        scores = dimension_scores(workflow, structural_score, validation_findings, findings, fuzz_report)
 
         limitations = [
             "Semantic evaluation combines deterministic graph analysis with optional AI-assisted requirement extraction.",
@@ -50,6 +54,12 @@ class SemanticEvaluationEngine:
         ]
         if spec is None:
             limitations.append("No source prompt was available, so prompt alignment could not be evaluated.")
+        if fuzz_report is None:
+            limitations.append(
+                "No fuzz campaign has been run, so reliability reflects declared error handling only."
+            )
+        else:
+            limitations.extend(fuzz_report.limitations)
 
         return EvaluationResult(
             workflow_id=workflow.id,

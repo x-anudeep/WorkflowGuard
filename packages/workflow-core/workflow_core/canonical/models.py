@@ -12,6 +12,7 @@ class SourceFormat(StrEnum):
     BPMN = "bpmn"
     GENERIC_JSON = "generic_json"
     N8N = "n8n"
+    QUBI = "qubi"
 
 
 class SourceType(StrEnum):

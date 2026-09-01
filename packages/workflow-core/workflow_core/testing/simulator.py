@@ -6,6 +6,7 @@ from collections import defaultdict, deque
 from time import perf_counter
 from typing import Any
 
+from workflow_core.analysis.failure_paths import is_failure_edge
 from workflow_core.canonical.models import Edge, Node, NodeType, Workflow
 from workflow_core.testing.models import (
     FailureInjection,
@@ -227,12 +228,9 @@ def _has_failure_edge(edges: list[Edge]) -> bool:
 
 
 def _failure_edges(edges: list[Edge]) -> list[Edge]:
-    return [
-        edge
-        for edge in edges
-        if "error" in f"{edge.condition or ''} {edge.label or ''}".lower()
-        or "fail" in f"{edge.condition or ''} {edge.label or ''}".lower()
-    ]
+    return [edge for edge in edges if is_failure_edge(edge)]
+
+
 
 
 def _estimate_tokens(state: dict[str, Any]) -> int:

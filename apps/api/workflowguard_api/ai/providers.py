@@ -8,19 +8,25 @@ import httpx
 from pydantic import ValidationError
 from workflow_core.evaluation.models import RequirementSpec
 
+from workflowguard_api.ai.errors import (
+    AIProviderError,
+    AIProviderUnavailable,
+    MalformedAIResponse,
+)
+from workflowguard_api.ai.groq_client import groq_json_completion
 from workflowguard_api.core.config import Settings
 
-
-class AIProviderError(RuntimeError):
-    pass
-
-
-class AIProviderUnavailable(AIProviderError):
-    pass
-
-
-class MalformedAIResponse(AIProviderError):
-    pass
+__all__ = [
+    "AIProviderError",
+    "AIProviderUnavailable",
+    "GroqRequirementProvider",
+    "MalformedAIResponse",
+    "NoopAIProvider",
+    "OpenAIResponsesProvider",
+    "RequirementExtractionProvider",
+    "StaticMockAIProvider",
+    "provider_from_settings",
+]
 
 
 class RequirementExtractionProvider(ABC):
@@ -101,6 +107,36 @@ class OpenAIResponsesProvider(RequirementExtractionProvider):
                 raise MalformedAIResponse("AI provider returned malformed requirement JSON.") from nested
 
 
+class GroqRequirementProvider(RequirementExtractionProvider):
+    provider_name = "groq"
+
+    def __init__(self, api_key: str, model_name: str, timeout_seconds: float = 20.0) -> None:
+        self.api_key = api_key
+        self.model_name = model_name
+        self.timeout_seconds = timeout_seconds
+
+    def extract_requirements(self, prompt: str) -> RequirementSpec:
+        text = groq_json_completion(
+            api_key=self.api_key,
+            model=self.model_name,
+            system=(
+                "Extract a structured WorkflowGuard RequirementSpec from the user prompt. "
+                "Return only JSON matching the provided schema. Do not invent requirements."
+            ),
+            user=prompt,
+            schema=RequirementSpec.model_json_schema(),
+            schema_name="workflowguard_requirement_spec",
+            timeout_seconds=self.timeout_seconds,
+        )
+        try:
+            return RequirementSpec.model_validate_json(text)
+        except (ValidationError, ValueError):
+            try:
+                return RequirementSpec.model_validate(json.loads(text))
+            except Exception as nested:
+                raise MalformedAIResponse("Groq returned malformed requirement JSON.") from nested
+
+
 class StaticMockAIProvider(RequirementExtractionProvider):
     provider_name = "mock"
     model_name = "mock-requirement-extractor"
@@ -120,6 +156,10 @@ def provider_from_settings(settings: Settings) -> RequirementExtractionProvider:
         if not settings.ai_api_key:
             raise AIProviderUnavailable("WORKFLOWGUARD_AI_API_KEY is not configured.")
         return OpenAIResponsesProvider(settings.ai_api_key, settings.ai_model, settings.ai_timeout_seconds)
+    if provider == "groq":
+        if not settings.ai_api_key:
+            raise AIProviderUnavailable("WORKFLOWGUARD_AI_API_KEY is not configured.")
+        return GroqRequirementProvider(settings.ai_api_key, settings.ai_model, settings.ai_timeout_seconds)
     raise AIProviderUnavailable(f"Unsupported AI provider '{settings.ai_provider}'.")
 
 

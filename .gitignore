@@ -18,3 +18,12 @@ build/
 coverage/
 playwright-report/
 test-results/
+
+# Local agent notes / plans (not shared)
+.claude/
+
+# Local sample workflows / scratch inputs (not shared)
+references/
+
+# Local virtualenv
+.venv/

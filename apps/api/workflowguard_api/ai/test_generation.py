@@ -10,6 +10,7 @@ from workflow_core.canonical.models import Workflow
 from workflow_core.evaluation.models import RequirementSpec
 from workflow_core.testing.models import TestGenerationResult
 
+from workflowguard_api.ai.groq_client import groq_json_completion
 from workflowguard_api.ai.providers import (
     AIProviderError,
     AIProviderUnavailable,
@@ -103,6 +104,41 @@ class OpenAITestGenerationProvider(TestGenerationProvider):
                 raise MalformedAIResponse("AI provider returned malformed workflow test JSON.") from nested
 
 
+class GroqTestGenerationProvider(TestGenerationProvider):
+    provider_name = "groq"
+
+    def __init__(self, api_key: str, model_name: str, timeout_seconds: float = 20.0) -> None:
+        self.api_key = api_key
+        self.model_name = model_name
+        self.timeout_seconds = timeout_seconds
+
+    def generate_tests(self, workflow: Workflow, requirement_spec: RequirementSpec | None) -> TestGenerationResult:
+        text = groq_json_completion(
+            api_key=self.api_key,
+            model=self.model_name,
+            system=(
+                "Generate WorkflowGuard tests for this canonical workflow. Return only JSON matching "
+                "the provided TestGenerationResult schema. External systems must remain mocked."
+            ),
+            user=json.dumps(
+                {
+                    "workflow": workflow.model_dump(mode="json"),
+                    "requirement_spec": requirement_spec.model_dump(mode="json") if requirement_spec else None,
+                }
+            ),
+            schema=TestGenerationResult.model_json_schema(),
+            schema_name="workflowguard_test_generation",
+            timeout_seconds=self.timeout_seconds,
+        )
+        try:
+            return TestGenerationResult.model_validate_json(text)
+        except (ValidationError, ValueError):
+            try:
+                return TestGenerationResult.model_validate(json.loads(text))
+            except Exception as nested:
+                raise MalformedAIResponse("Groq returned malformed workflow test JSON.") from nested
+
+
 class StaticMockTestGenerationProvider(TestGenerationProvider):
     provider_name = "mock"
     model_name = "mock-test-generator"
@@ -122,4 +158,8 @@ def test_generation_provider_from_settings(settings: Settings) -> TestGeneration
         if not settings.ai_api_key:
             raise AIProviderUnavailable("WORKFLOWGUARD_AI_API_KEY is not configured.")
         return OpenAITestGenerationProvider(settings.ai_api_key, settings.ai_model, settings.ai_timeout_seconds)
+    if provider == "groq":
+        if not settings.ai_api_key:
+            raise AIProviderUnavailable("WORKFLOWGUARD_AI_API_KEY is not configured.")
+        return GroqTestGenerationProvider(settings.ai_api_key, settings.ai_model, settings.ai_timeout_seconds)
     raise AIProviderUnavailable(f"Unsupported AI provider '{settings.ai_provider}'.")
