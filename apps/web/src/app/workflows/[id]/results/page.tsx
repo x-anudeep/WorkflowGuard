@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CostPanel } from "@/components/CostPanel";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { RepairPanel } from "@/components/RepairPanel";
+import { FuzzPanel } from "@/components/FuzzPanel";
 import { TestsPanel } from "@/components/TestsPanel";
 import { VersionComparePanel } from "@/components/VersionComparePanel";
 import { WorkflowAssessmentActions } from "@/components/WorkflowAssessmentActions";
@@ -17,12 +18,13 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
   if (!isUuid(id)) {
     notFound();
   }
-  const [workflow, validation, evaluations, tests, testRuns, cost, comparison, repairs, qualityGate, history, versions] = await Promise.all([
+  const [workflow, validation, evaluations, tests, testRuns, fuzzRun, cost, comparison, repairs, qualityGate, history, versions] = await Promise.all([
     api.workflow(id),
     api.validation(id),
     api.evaluations(id),
     api.tests(id),
     api.testRuns(id),
+    api.latestFuzz(id).catch(() => null),
     api.cost(id),
     api.compareVersions(id),
     api.repairs(id),
@@ -32,9 +34,12 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
   ]);
   const latestEvaluation = evaluations[0];
   const dimensions = Object.fromEntries((latestEvaluation?.dimension_scores ?? []).map((score) => [score.dimension, score.score]));
+  // Mark the reliability score as measured only when a campaign actually exercised the
+  // workflow, so a declared-only score is never mistaken for a proven one.
+  const reliabilityMeasured = Boolean(fuzzRun && fuzzRun.exercised_cases > 0);
+  const reliabilityLabel = `${scoreValue(dimensions.reliability)}${reliabilityMeasured ? " measured" : " declared"}`;
   const securityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "security") ?? [];
   const reliabilityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "reliability") ?? [];
-  const hallucinationFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "hallucination") ?? [];
   const testsHaveRun = testRuns.runs.length > 0;
   const testsLabel = tests.length === 0 ? "No tests" : testsHaveRun ? `${testRuns.passed}/${testRuns.total_tests} passing` : `${tests.length} not run`;
   const coverageLabel = testsHaveRun ? `${testRuns.latest_coverage.toFixed(0)}%` : "Not measured";
@@ -94,6 +99,14 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
               {missingEvidence.map((item) => (
                 <Explanation key={item.title} title={item.title} body={item.body} />
               ))}
+              <Explanation
+                title={fuzzRun && fuzzRun.exercised_cases > 0 ? "How Reliable is measured" : "Why Reliable is only half-measured"}
+                body={
+                  fuzzRun && fuzzRun.exercised_cases > 0
+                    ? `Reliability is 60% findings-based analysis of declared error handling and 40% measured survival: ${fuzzRun.exercised_cases} fuzz cases injected dependency failures and malformed input, and ${fuzzRun.handled} were handled. A workflow only earns the measured half by actually routing failures to compensation.`
+                    : "Reliability currently reflects only what the workflow declares - timeouts, retries, and edges labelled as error paths. Run a fuzz campaign to measure whether that handling survives real dependency failures."
+                }
+              />
               {latestEvaluation && latestEvaluation.findings.length === 0 && (
                 <Explanation title="No semantic findings" body="The latest semantic evaluation did not find prompt-alignment, security, reliability, or maintainability issues. Re-run tests and gates after every workflow version change." />
               )}
@@ -103,8 +116,7 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
             <StatusCard label="Valid" value={validation && validation.findings.every((finding) => finding.severity !== "ERROR" && finding.severity !== "CRITICAL") ? "Yes" : "Needs work"} tone={validationAttention.length ? "bad" : "good"} />
             <StatusCard label="Matches requirement" value={scoreValue(dimensions.prompt_alignment)} tone={scoreCardTone(dimensions.prompt_alignment)} />
             <StatusCard label="Secure" value={scoreValue(dimensions.security)} tone={scoreCardTone(dimensions.security)} />
-            <StatusCard label="Reliable" value={scoreValue(dimensions.reliability)} tone={scoreCardTone(dimensions.reliability)} />
-            <StatusCard label="Hallucination Rate" value={scoreValue(dimensions.hallucination)} tone={scoreCardTone(dimensions.hallucination)} />
+            <StatusCard label="Reliable" value={reliabilityLabel} tone={scoreCardTone(dimensions.reliability)} />
             <StatusCard label="Tests" value={testsLabel} tone={!testsHaveRun || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
             <StatusCard label="Coverage" value={coverageLabel} tone={testsHaveRun && testRuns.latest_coverage >= 85 ? "good" : "bad"} />
             <StatusCard label="Cost" value={`$${cost.monthly_cost.toFixed(2)}/mo`} />
@@ -131,12 +143,9 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
               </div>
             </div>
           )}
-          {latestEvaluation && (securityFindings.length > 0 || reliabilityFindings.length > 0 || hallucinationFindings.length > 0) && (
+          {latestEvaluation && (securityFindings.length > 0 || reliabilityFindings.length > 0) && (
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {reliabilityFindings.slice(0, 3).map((finding) => (
-                <FindingSummary key={`${finding.rule_id}-${finding.message}`} title={finding.title} severity={finding.severity} message={finding.message} />
-              ))}
-              {hallucinationFindings.slice(0, 3).map((finding) => (
                 <FindingSummary key={`${finding.rule_id}-${finding.message}`} title={finding.title} severity={finding.severity} message={finding.message} />
               ))}
               {securityFindings.slice(0, 3).map((finding) => (
@@ -190,6 +199,10 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
 
         <Panel title="Tests">
           <TestsPanel workflowId={workflow.id} initialTests={tests} initialRuns={testRuns} />
+        </Panel>
+
+        <Panel title="Fuzz &amp; Error Handling">
+          <FuzzPanel workflowId={workflow.id} initialRun={fuzzRun} />
         </Panel>
 
         <Panel title="Cost">

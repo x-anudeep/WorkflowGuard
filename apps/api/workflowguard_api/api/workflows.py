@@ -25,6 +25,9 @@ from workflowguard_api.schemas.workflows import (
     EvaluationFindingRead,
     EvaluationRequest,
     EvaluationRunRead,
+    FuzzCaseRead,
+    FuzzRunRead,
+    FuzzRunRequest,
     GenerateTestsRequest,
     GenerateTestsResponse,
     GraphRead,
@@ -53,6 +56,7 @@ from workflowguard_api.schemas.workflows import (
 from workflowguard_api.services.audit import AuditService
 from workflowguard_api.services.costs import CostService
 from workflowguard_api.services.evaluations import EvaluationNotFoundError, EvaluationService
+from workflowguard_api.services.fuzzing import FuzzRunNotFoundError, FuzzService
 from workflowguard_api.services.platform import PlatformMetricsService
 from workflowguard_api.services.quality import QualityGateService
 from workflowguard_api.services.repairs import RepairProposalNotFoundError, RepairService
@@ -300,15 +304,20 @@ def generate_tests(
     db: Session = Depends(get_db),
 ) -> GenerateTestsResponse:
     try:
-        result, records = WorkflowTestingService(db).generate_tests(
+        result, all_tests = WorkflowTestingService(db).generate_tests(
             workflow_id,
             use_ai=payload.use_ai if payload else True,
             replace_existing=payload.replace_existing if payload else False,
         )
-        AuditService(db).record("tests_generated", f"Generated {len(records)} workflow tests.", workflow_id=workflow_id)
+        # `generated` counts what this call created; `tests` is the whole suite, so the
+        # panel and the status card cannot disagree about how many tests exist. These
+        # were previously both the suite size, which reported every regeneration as
+        # having generated the entire corpus again.
+        created = len(result.tests)
+        AuditService(db).record("tests_generated", f"Generated {created} workflow tests.", workflow_id=workflow_id)
         return GenerateTestsResponse(
-            generated=len(records),
-            tests=[_workflow_test(record) for record in records],
+            generated=created,
+            tests=[_workflow_test(record) for record in all_tests],
             rationale=result.rationale,
             warnings=result.warnings,
         )
@@ -374,6 +383,50 @@ def get_test_run(run_id: UUID, db: Session = Depends(get_db)) -> WorkflowTestRun
         return _workflow_test_run(WorkflowTestingService(db).get_run(run_id))
     except WorkflowTestRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test run not found") from exc
+
+
+@router.post("/workflows/{workflow_id}/fuzz", response_model=FuzzRunRead)
+def run_fuzz_campaign(
+    workflow_id: UUID,
+    payload: FuzzRunRequest | None = None,
+    db: Session = Depends(get_db),
+) -> FuzzRunRead:
+    request = payload or FuzzRunRequest()
+    try:
+        run = FuzzService(db).run_campaign(
+            workflow_id,
+            use_ai=request.use_ai,
+            seed=request.seed,
+            max_cases=request.max_cases,
+        )
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    return _fuzz_run(run)
+
+
+@router.get("/workflows/{workflow_id}/fuzz", response_model=list[FuzzRunRead])
+def list_fuzz_runs(workflow_id: UUID, db: Session = Depends(get_db)) -> list[FuzzRunRead]:
+    try:
+        return [_fuzz_run(run) for run in FuzzService(db).list_runs(workflow_id)]
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+@router.get("/workflows/{workflow_id}/fuzz/latest", response_model=FuzzRunRead | None)
+def latest_fuzz_run(workflow_id: UUID, db: Session = Depends(get_db)) -> FuzzRunRead | None:
+    try:
+        run = FuzzService(db).latest_run(workflow_id)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    return _fuzz_run(run) if run else None
+
+
+@router.get("/workflows/{workflow_id}/fuzz/{run_id}", response_model=FuzzRunRead)
+def get_fuzz_run(workflow_id: UUID, run_id: UUID, db: Session = Depends(get_db)) -> FuzzRunRead:
+    try:
+        return _fuzz_run(FuzzService(db).get_run(workflow_id, run_id))
+    except (WorkflowNotFoundError, FuzzRunNotFoundError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fuzz run not found") from exc
 
 
 @router.get("/pricing", response_model=list[PricingEntryRead])
@@ -842,4 +895,49 @@ def _audit_event(record: AuditEventRecord) -> AuditEventRead:
         message=record.message,
         metadata=record.metadata_json,
         created_at=record.created_at,
+    )
+
+
+def _fuzz_run(run) -> FuzzRunRead:
+    return FuzzRunRead(
+        id=run.id,
+        workflow_id=run.workflow_id,
+        version_id=run.version_id,
+        seed=run.seed,
+        total_cases=run.total_cases,
+        exercised_cases=run.exercised_cases,
+        handled=run.handled,
+        unhandled_crash=run.unhandled_crash,
+        silent_success=run.silent_success,
+        hung=run.hung,
+        not_triggered=run.not_triggered,
+        robustness_score=run.robustness_score,
+        generated_by=run.generated_by,
+        ai_provider=run.ai_provider,
+        ai_model=run.ai_model,
+        ai_metadata=run.ai_metadata,
+        findings=run.findings,
+        limitations=run.limitations,
+        suggestions=run.suggestions,
+        created_at=run.created_at,
+        cases=[
+            FuzzCaseRead(
+                id=case.id,
+                case_id=case.case_id,
+                name=case.name,
+                description=case.description,
+                strategy=case.strategy,
+                verdict=case.verdict,
+                observed=case.observed,
+                generated_by=case.generated_by,
+                seed=case.seed,
+                input_data=case.input_data,
+                failure_injections=case.failure_injections,
+                targeted_node_ids=case.targeted_node_ids,
+                evidence=case.evidence,
+                execution_trace=case.execution_trace,
+                created_at=case.created_at,
+            )
+            for case in run.cases
+        ],
     )

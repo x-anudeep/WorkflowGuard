@@ -6,6 +6,7 @@ from collections import defaultdict, deque
 from time import perf_counter
 from typing import Any
 
+from workflow_core.analysis.failure_paths import is_failure_edge
 from workflow_core.canonical.models import Edge, Node, NodeType, Workflow
 from workflow_core.testing.models import (
     FailureInjection,
@@ -21,6 +22,19 @@ from workflow_core.testing.models import (
 
 class WorkflowSimulator:
     max_steps = 250
+
+    def __init__(self, *, propagate_failures: bool = False) -> None:
+        """
+        Args:
+            propagate_failures: when True, a failing node with no error edge of its own
+                records the failure into workflow state and continues down its normal
+                edges, instead of aborting the run. Real workflows commonly handle errors
+                downstream - the call runs, then the next condition inspects
+                ``result.success`` - and that handling is invisible to a run that stops at
+                the failing node. Off by default so stored test runs keep their existing
+                pass/fail semantics.
+        """
+        self.propagate_failures = propagate_failures
 
     def simulate(self, workflow: Workflow, test: WorkflowTest) -> SimulationResult:
         started = perf_counter()
@@ -60,9 +74,23 @@ class WorkflowSimulator:
                         for edge in _failure_edges(outgoing[node_id]):
                             result.executed_edges.append(edge.id)
                             queue.append(edge.target)
-                    else:
+                        continue
+                    if not self.propagate_failures:
                         result.status = TestRunStatus.ERROR
                         break
+                    # Let the failure travel downstream so a condition that inspects the
+                    # result can take its remediation branch.
+                    state.update(_failure_state(node, execution.error))
+                    result.outputs[node_id] = dict(_failure_state(node, execution.error))
+                    next_edges = self._select_edges(node, outgoing[node_id], state)
+                    if not next_edges:
+                        result.status = TestRunStatus.ERROR
+                        break
+                    for edge in next_edges:
+                        result.executed_edges.append(edge.id)
+                        if edge.condition or edge.label:
+                            result.branch_decisions[node.id] = edge.label or edge.condition or edge.target
+                        queue.append(edge.target)
                     continue
                 state.update(execution.output_data)
                 result.outputs[node_id] = execution.output_data
@@ -159,8 +187,19 @@ class WorkflowSimulator:
         matched = [edge for edge in conditional if evaluate_condition(edge.condition or "", state)]
         if matched:
             return matched[:1]
-        fallback = [edge for edge in edges if not edge.condition or str(edge.label).lower() in ("else", "default", "false", "no")]
-        return fallback[:1]
+        fallback = [
+            edge
+            for edge in edges
+            if not edge.condition or str(edge.label).lower() in ("else", "default", "false", "no")
+        ]
+        if fallback:
+            return fallback[:1]
+        if self.propagate_failures:
+            # No branch matched and no default exists. Abandoning the run here would leave
+            # most of the workflow unexercised and silently unmeasured, so take the first
+            # branch rather than reporting a graph we never walked.
+            return edges[:1]
+        return []
 
 
 def evaluate_condition(condition: str, state: dict[str, Any]) -> bool:
@@ -180,7 +219,12 @@ def evaluate_condition(condition: str, state: dict[str, Any]) -> bool:
     ]:
         if op_text in text:
             left, right = [part.strip() for part in text.split(op_text, 1)]
-            return op_func(_value(left, state), _value(right, state))
+            try:
+                return op_func(_value(left, state), _value(right, state))
+            except TypeError:
+                # An unresolved field compared against a number. The branch is simply not
+                # satisfied - it is not a failure of the workflow under test.
+                return False
     return bool(state.get(_field_name(text), False))
 
 
@@ -227,13 +271,30 @@ def _has_failure_edge(edges: list[Edge]) -> bool:
 
 
 def _failure_edges(edges: list[Edge]) -> list[Edge]:
-    return [
-        edge
-        for edge in edges
-        if "error" in f"{edge.condition or ''} {edge.label or ''}".lower()
-        or "fail" in f"{edge.condition or ''} {edge.label or ''}".lower()
-    ]
+    return [edge for edge in edges if is_failure_edge(edge)]
+
+
 
 
 def _estimate_tokens(state: dict[str, Any]) -> int:
     return max(1, len(str(state)) // 4)
+
+
+def _failure_state(node: Node, error: str) -> dict[str, Any]:
+    """State a downstream condition would see after this node failed.
+
+    Written under both the node's declared output variable and bare field names, because
+    conditions reference results either way (``result.success`` or plain ``success``).
+    """
+    marker: dict[str, Any] = {
+        "success": False,
+        "ok": False,
+        "error": error,
+        "status": "failed",
+        "statusCode": 500,
+        "status_code": 500,
+    }
+    output_variable = node.configuration.get("saveOutputAs") or node.configuration.get("save_output_as")
+    if isinstance(output_variable, str) and output_variable:
+        marker[output_variable] = dict(marker)
+    return marker

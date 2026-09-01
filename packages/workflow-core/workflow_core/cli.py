@@ -9,6 +9,7 @@ from workflow_core.canonical.models import SourceType
 from workflow_core.comparison import VersionComparisonEngine
 from workflow_core.costing import CostEstimator, CostOptimizationEngine, CostScenario
 from workflow_core.evaluation import SemanticEvaluationEngine
+from workflow_core.fuzzing import DEFAULT_MAX_CASES, DEFAULT_SEED, FuzzEngine
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.registry import default_parser_registry
 from workflow_core.quality import QualityGateEngine
@@ -20,7 +21,7 @@ from workflow_core.validation.engine import ValidationEngine
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="workflowguard", description="WorkflowGuard workflow QA CLI")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    for command in ("validate", "evaluate", "test", "cost", "check", "report"):
+    for command in ("validate", "evaluate", "fuzz", "test", "cost", "check", "report"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("file", type=Path)
         command_parser.add_argument("--prompt", default=None)
@@ -31,6 +32,15 @@ def main(argv: list[str] | None = None) -> int:
             command_parser.add_argument("--input-tokens", type=int, default=1000)
             command_parser.add_argument("--output-tokens", type=int, default=300)
             command_parser.add_argument("--retry-rate", type=float, default=0.05)
+        if command == "fuzz":
+            command_parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+            command_parser.add_argument("--max-cases", type=int, default=DEFAULT_MAX_CASES)
+            command_parser.add_argument(
+                "--min-robustness",
+                type=int,
+                default=70,
+                help="Exit non-zero when measured robustness falls below this score.",
+            )
         if command == "report":
             command_parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     compare_parser = subcommands.add_parser("compare")
@@ -88,6 +98,25 @@ def main(argv: list[str] | None = None) -> int:
         }
         _emit(args.json, payload)
         return 1 if result.overall_score < 70 else 0
+
+    if args.command == "fuzz":
+        report = FuzzEngine().run(workflow, seed=args.seed, max_cases=args.max_cases)
+        payload = {
+            "robustness_score": report.robustness_score,
+            "exercised_cases": report.exercised_cases,
+            "total_cases": len(report.results),
+            "seed": report.seed,
+            "counts": report.counts,
+            "findings": [finding.model_dump(mode="json") for finding in report.findings],
+            "limitations": report.limitations,
+        }
+        _emit(args.json, payload)
+        if report.exercised_cases == 0:
+            # Nothing was measured. Failing the gate here would punish a workflow with no
+            # external dependencies; passing it silently would hide a disconnected graph.
+            # Report and let `validate` be the gate on graph structure.
+            return 0
+        return 1 if report.robustness_score < args.min_robustness else 0
 
     if args.command == "cost":
         scenario = CostScenario(

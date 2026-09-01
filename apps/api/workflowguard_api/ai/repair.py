@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from workflow_core.canonical.models import Workflow
 from workflow_core.repair import RepairPatch
 
+from workflowguard_api.ai.groq_client import groq_json_completion
 from workflowguard_api.ai.providers import (
     AIProviderError,
     AIProviderUnavailable,
@@ -94,6 +95,37 @@ class OpenAIRepairProvider(RepairProvider):
                 raise MalformedAIResponse("AI provider returned malformed repair patch JSON.") from nested
 
 
+class GroqRepairProvider(RepairProvider):
+    provider_name = "groq"
+
+    def __init__(self, api_key: str, model_name: str, timeout_seconds: float = 20.0) -> None:
+        self.api_key = api_key
+        self.model_name = model_name
+        self.timeout_seconds = timeout_seconds
+
+    def generate_patch(self, workflow: Workflow, finding: dict | None = None) -> RepairPatch:
+        text = groq_json_completion(
+            api_key=self.api_key,
+            model=self.model_name,
+            system=(
+                "Generate a safe WorkflowGuard RepairPatch for the canonical workflow. Return only JSON "
+                "matching the schema. Do not remove requirements, approvals, tests, or add new external "
+                "destinations unless explicitly required."
+            ),
+            user=json.dumps({"workflow": workflow.model_dump(mode="json"), "finding": finding}),
+            schema=RepairPatch.model_json_schema(),
+            schema_name="workflowguard_repair_patch",
+            timeout_seconds=self.timeout_seconds,
+        )
+        try:
+            return RepairPatch.model_validate_json(text)
+        except (ValidationError, ValueError):
+            try:
+                return RepairPatch.model_validate(json.loads(text))
+            except Exception as nested:
+                raise MalformedAIResponse("Groq returned malformed repair patch JSON.") from nested
+
+
 class StaticMockRepairProvider(RepairProvider):
     provider_name = "mock"
     model_name = "mock-repair-generator"
@@ -113,4 +145,8 @@ def repair_provider_from_settings(settings: Settings) -> RepairProvider:
         if not settings.ai_api_key:
             raise AIProviderUnavailable("WORKFLOWGUARD_AI_API_KEY is not configured.")
         return OpenAIRepairProvider(settings.ai_api_key, settings.ai_model, settings.ai_timeout_seconds)
+    if provider == "groq":
+        if not settings.ai_api_key:
+            raise AIProviderUnavailable("WORKFLOWGUARD_AI_API_KEY is not configured.")
+        return GroqRepairProvider(settings.ai_api_key, settings.ai_model, settings.ai_timeout_seconds)
     raise AIProviderUnavailable(f"Unsupported AI provider '{settings.ai_provider}'.")

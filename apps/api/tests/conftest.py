@@ -12,6 +12,11 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "packages" / "workflow-core"))
 sys.path.insert(0, str(ROOT / "apps" / "api"))
 os.environ["WORKFLOWGUARD_DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+# Settings reads a repo-root .env, so a developer with a real provider configured would
+# otherwise have the suite make live API calls with their own key. Tests that exercise a
+# provider inject a mock one explicitly; the default must be deterministic and offline.
+os.environ["WORKFLOWGUARD_AI_PROVIDER"] = "none"
+os.environ["WORKFLOWGUARD_AI_API_KEY"] = ""
 
 from workflowguard_api.db.session import Base, get_db  # noqa: E402
 from workflowguard_api.main import create_app  # noqa: E402

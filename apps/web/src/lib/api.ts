@@ -2,6 +2,7 @@ import type {
   DashboardMetrics,
   CostEstimate,
   EvaluationRun,
+  FuzzRun,
   AuditEvent,
   QualityGateRun,
   RepairProposal,
@@ -84,6 +85,13 @@ export const api = {
       body: JSON.stringify({})
     }),
   testRuns: (id: string) => request<TestRunSummary>(`/workflows/${id}/test-runs`),
+  fuzzRuns: (id: string) => request<FuzzRun[]>(`/workflows/${id}/fuzz`),
+  latestFuzz: (id: string) => request<FuzzRun | null>(`/workflows/${id}/fuzz/latest`),
+  runFuzz: (id: string, useAI = true) =>
+    request<FuzzRun>(`/workflows/${id}/fuzz`, {
+      method: "POST",
+      body: JSON.stringify({ use_ai: useAI })
+    }),
   cost: (id: string) => request<CostEstimate>(`/workflows/${id}/cost`),
   estimateCost: (id: string, payload: Record<string, unknown>) =>
     request<CostEstimate>(`/workflows/${id}/cost`, {

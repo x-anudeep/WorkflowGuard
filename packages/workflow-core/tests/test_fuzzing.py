@@ -1,0 +1,370 @@
+from workflow_core.analysis import diagnose_entrypoints
+from workflow_core.canonical.models import (
+    Edge,
+    Node,
+    NodeType,
+    SourceFormat,
+    SourceType,
+    ValidationSeverity,
+    Workflow,
+)
+from workflow_core.evaluation.models import EvaluationDimension
+from workflow_core.evaluation.scoring import FUZZ_BLEND_WEIGHT, dimension_scores
+from workflow_core.fuzzing import (
+    DeterministicFuzzGenerator,
+    ErrorHandlingVerdict,
+    FuzzEngine,
+    robustness_score,
+)
+from workflow_core.fuzzing.models import FuzzCase, FuzzCaseResult
+from workflow_core.fuzzing.reachability import path_to, reaching_input
+from workflow_core.testing.models import SimulationResult, TestRunStatus
+
+
+def _unguarded_workflow() -> Workflow:
+    """Trigger -> API -> End, with no error path anywhere."""
+    return Workflow(
+        name="Unguarded payment",
+        source_format=SourceFormat.GENERIC_JSON,
+        source_type=SourceType.AI_GENERATED,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="pay", name="Charge Card", type=NodeType.EXTERNAL_API),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="start", target="pay"),
+            Edge(id="e2", source="pay", target="end"),
+        ],
+    )
+
+
+def _guarded_workflow() -> Workflow:
+    """Same shape, but the API has an error branch that notifies a human."""
+    workflow = _unguarded_workflow()
+    workflow.nodes.append(Node(id="alert", name="Notify Finance", type=NodeType.EMAIL))
+    workflow.edges.append(Edge(id="e3", source="pay", target="alert", label="on error"))
+    workflow.edges.append(Edge(id="e4", source="alert", target="end"))
+    return workflow
+
+
+def test_unchecked_dependency_failure_is_reported_as_silent() -> None:
+    """Nothing inspects the failed call, so the run finishes green having done nothing."""
+    report = FuzzEngine().run(_unguarded_workflow(), max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] > 0
+    assert report.robustness_score < 100
+    silent = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-002")
+    assert silent.dimension == EvaluationDimension.RELIABILITY
+    assert silent.severity == ValidationSeverity.ERROR
+    assert silent.node_id == "pay"
+    # The finding must carry enough to reproduce the exact case.
+    assert silent.metadata["fuzz_seed"] == report.seed
+    assert silent.metadata["fuzz_case_names"]
+
+
+def test_failure_with_nowhere_to_continue_is_an_unhandled_crash() -> None:
+    workflow = Workflow(
+        name="Terminal dependency",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="pay", name="Charge Card", type=NodeType.EXTERNAL_API),
+        ],
+        edges=[Edge(id="e1", source="start", target="pay")],
+    )
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.UNHANDLED_CRASH.value] > 0
+    crash = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-001")
+    assert crash.severity == ValidationSeverity.ERROR
+    assert crash.node_id == "pay"
+
+
+def test_downstream_condition_can_handle_an_upstream_failure() -> None:
+    """The common real shape: the call runs, the next branch inspects the result."""
+    workflow = Workflow(
+        name="Checked payment",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(
+                id="pay",
+                name="Charge Card",
+                type=NodeType.EXTERNAL_API,
+                configuration={"saveOutputAs": "payResult"},
+            ),
+            Node(id="check", name="Check Payment", type=NodeType.CONDITION),
+            Node(id="alert", name="Notify Finance", type=NodeType.EMAIL),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="start", target="pay"),
+            Edge(id="e2", source="pay", target="check"),
+            Edge(id="e3", source="check", target="alert", condition="payResult.success == false"),
+            Edge(id="e4", source="check", target="end", condition="payResult.success == true"),
+            Edge(id="e5", source="alert", target="end"),
+        ],
+    )
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.HANDLED.value] > 0
+    assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] == 0
+    assert report.robustness_score == 100
+
+
+def test_declared_error_path_that_notifies_counts_as_handled() -> None:
+    report = FuzzEngine().run(_guarded_workflow(), max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.UNHANDLED_CRASH.value] == 0
+    assert report.counts[ErrorHandlingVerdict.HANDLED.value] > 0
+    assert report.robustness_score > FuzzEngine().run(_unguarded_workflow(), max_cases=200).robustness_score
+    assert not [finding for finding in report.findings if finding.rule_id == "WG-FUZZ-001"]
+
+
+def test_error_branch_that_only_ends_is_reported_as_silent() -> None:
+    """An error edge straight to END hides the failure rather than handling it."""
+    workflow = _unguarded_workflow()
+    workflow.edges.append(Edge(id="e3", source="pay", target="end", label="on error"))
+
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] > 0
+    silent = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-002")
+    assert silent.severity == ValidationSeverity.ERROR
+    assert "swallow" in silent.title.lower() or "silent" in silent.title.lower()
+
+
+def test_generation_is_reproducible_for_a_seed() -> None:
+    workflow = _unguarded_workflow()
+    generator = DeterministicFuzzGenerator()
+
+    first = generator.generate(workflow, seed=99, max_cases=25)
+    second = generator.generate(workflow, seed=99, max_cases=25)
+    different = generator.generate(workflow, seed=100, max_cases=25)
+
+    assert [case.name for case in first] == [case.name for case in second]
+    assert [case.name for case in first] != [case.name for case in different]
+
+
+def test_injected_failure_on_an_unreached_node_is_not_counted_as_a_pass() -> None:
+    """A case that never fired proved nothing and must stay out of the denominator."""
+    workflow = _unguarded_workflow()
+    workflow.nodes.append(Node(id="orphan", name="Unreachable API", type=NodeType.EXTERNAL_API))
+
+    report = FuzzEngine().run(workflow, max_cases=200)
+    orphan_results = [
+        result
+        for result in report.results
+        if result.case.failure_injections
+        and {injection.node_id for injection in result.case.failure_injections} == {"orphan"}
+    ]
+
+    assert orphan_results
+    assert all(
+        ErrorHandlingVerdict(result.verdict) == ErrorHandlingVerdict.NOT_TRIGGERED
+        for result in orphan_results
+    )
+
+
+def test_robustness_score_ignores_untriggered_cases() -> None:
+    def result(verdict: ErrorHandlingVerdict) -> FuzzCaseResult:
+        return FuzzCaseResult(
+            case=FuzzCase(name="c", description="d"),
+            verdict=verdict,
+            simulation=SimulationResult(workflow_id="w", test_id="t", status=TestRunStatus.PASSED),
+            observed="",
+        )
+
+    assert robustness_score([]) == 100
+    assert robustness_score([result(ErrorHandlingVerdict.NOT_TRIGGERED)] * 5) == 100
+    assert robustness_score([result(ErrorHandlingVerdict.HANDLED), result(ErrorHandlingVerdict.HUNG)]) == 50
+    assert (
+        robustness_score(
+            [
+                result(ErrorHandlingVerdict.HANDLED),
+                result(ErrorHandlingVerdict.UNHANDLED_CRASH),
+                result(ErrorHandlingVerdict.NOT_TRIGGERED),
+            ]
+        )
+        == 50
+    )
+
+
+def _reliability(scores) -> object:
+    return next(
+        score for score in scores if score.dimension == EvaluationDimension.RELIABILITY
+    )
+
+
+def test_reliability_score_is_unchanged_when_no_fuzz_report_exists() -> None:
+    """Regression guard: every workflow scored before fuzzing existed must score the same."""
+    workflow = _unguarded_workflow()
+    findings = FuzzEngine().run(workflow, max_cases=200).findings
+
+    without = _reliability(dimension_scores(workflow, 90, [], findings))
+    explicit_none = _reliability(dimension_scores(workflow, 90, [], findings, None))
+
+    assert without.score == explicit_none.score
+    assert "fuzz_robustness" not in without.calculation
+    assert without.calculation["penalty"] == sum(
+        {"ERROR": 18, "WARNING": 7, "INFO": 2, "CRITICAL": 35}[str(finding.severity)]
+        for finding in findings
+        if finding.dimension == EvaluationDimension.RELIABILITY
+    )
+
+
+def test_reliability_blends_static_and_measured_robustness() -> None:
+    workflow = _unguarded_workflow()
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    score = _reliability(dimension_scores(workflow, 90, [], report.findings, report))
+    penalty_score = score.calculation["penalty_score"]
+
+    expected = round((1 - FUZZ_BLEND_WEIGHT) * penalty_score + FUZZ_BLEND_WEIGHT * report.robustness_score)
+    assert score.score == expected
+    assert score.calculation["fuzz_robustness"] == report.robustness_score
+    assert score.calculation["fuzz_seed"] == report.seed
+    assert score.calculation["fuzz_cases_exercised"] > 0
+    # Measured fragility must actually pull the score below the static-only view.
+    assert score.score < penalty_score
+
+
+def test_unexercised_fuzz_report_does_not_inflate_reliability() -> None:
+    """A campaign where nothing fired proves nothing and must not earn credit."""
+    workflow = Workflow(
+        name="No dependencies",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[Edge(id="e1", source="start", target="end")],
+    )
+    report = FuzzEngine().run(workflow, max_cases=200)
+    for result in report.results:
+        result.verdict = ErrorHandlingVerdict.NOT_TRIGGERED
+
+    assert report.exercised_cases == 0
+    blended = _reliability(dimension_scores(workflow, 90, [], [], report))
+    plain = _reliability(dimension_scores(workflow, 90, [], []))
+    assert blended.score == plain.score
+    assert "fuzz_robustness" not in blended.calculation
+
+
+def _gated_workflow() -> Workflow:
+    """The payment sits behind a threshold branch the default input does not satisfy."""
+    return Workflow(
+        name="Gated payment",
+        source_format=SourceFormat.GENERIC_JSON,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="check", name="Large invoice?", type=NodeType.CONDITION),
+            Node(id="small", name="Auto approve", type=NodeType.ACTION),
+            Node(id="pay", name="Charge Card", type=NodeType.EXTERNAL_API),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="start", target="check"),
+            Edge(id="e2", source="check", target="pay", condition="invoice.amount > 50000"),
+            Edge(id="e3", source="check", target="small", condition="invoice.amount <= 50000"),
+            Edge(id="e4", source="pay", target="end"),
+            Edge(id="e5", source="small", target="end"),
+        ],
+    )
+
+
+def test_reaching_input_solves_the_branch_conditions_on_the_path() -> None:
+    workflow = _gated_workflow()
+    path = path_to(workflow, "pay")
+
+    assert path is not None
+    assert [edge.id for edge in path] == ["e1", "e2"]
+    # `amount` is read by its last path segment, matching how the simulator resolves it.
+    assert reaching_input(workflow, "pay", {"approved": True}) == {"approved": True, "amount": 50001}
+
+
+def test_reaching_input_returns_the_base_when_the_node_is_unreachable() -> None:
+    workflow = _gated_workflow()
+    workflow.nodes.append(Node(id="orphan", name="Orphan", type=NodeType.EXTERNAL_API))
+
+    assert path_to(workflow, "orphan") is None
+    assert reaching_input(workflow, "orphan", {"approved": True}) == {"approved": True}
+
+
+def test_failure_behind_a_branch_is_measured_instead_of_discarded() -> None:
+    """Without steering, every fault on `pay` would be NOT_TRIGGERED and score nothing."""
+    workflow = _gated_workflow()
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    pay_results = [
+        result
+        for result in report.results
+        if result.case.failure_injections
+        and {injection.node_id for injection in result.case.failure_injections} == {"pay"}
+    ]
+    fired = [
+        result
+        for result in pay_results
+        if ErrorHandlingVerdict(result.verdict) != ErrorHandlingVerdict.NOT_TRIGGERED
+    ]
+
+    assert pay_results
+    assert fired, "the reachability retry should have steered execution to the gated node"
+    assert any(
+        "derived from the branch conditions" in " ".join(result.evidence) for result in fired
+    )
+    assert report.exercised_cases > 0
+
+
+def _misanchored_workflow() -> Workflow:
+    """A typed Start that was never connected, with the real chain orphaned beside it."""
+    return Workflow(
+        name="Mis-anchored",
+        source_format=SourceFormat.QUBI,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="fetch", name="Fetch Claims", type=NodeType.EXTERNAL_API),
+            Node(id="score", name="Score Claim", type=NodeType.LLM),
+            Node(id="pay", name="Pay Claim", type=NodeType.EXTERNAL_API),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="fetch", target="score"),
+            Edge(id="e2", source="score", target="pay"),
+            Edge(id="e3", source="pay", target="end"),
+        ],
+    )
+
+
+def test_mis_anchored_start_is_reported_as_a_suggestion() -> None:
+    workflow = _misanchored_workflow()
+    diagnosis = diagnose_entrypoints(workflow)
+
+    assert diagnosis is not None
+    assert diagnosis.declared_reach == 1
+    assert diagnosis.candidate_name == "Fetch Claims"
+    assert diagnosis.candidate_reach == 4
+    assert "'Start'" in diagnosis.suggestion
+    assert "Fetch Claims" in diagnosis.suggestion
+
+
+def test_healthy_workflows_get_no_entrypoint_suggestion() -> None:
+    assert diagnose_entrypoints(_guarded_workflow()) is None
+    assert diagnose_entrypoints(_gated_workflow()) is None
+
+
+def test_entrypoint_suggestion_does_not_change_any_score() -> None:
+    """The whole point: advice must not move reliability, penalties, or robustness."""
+    workflow = _misanchored_workflow()
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.suggestions, "the mis-anchored start should be reported"
+    # Reported, but nothing measurable changed: no cases fired, so no blend happens.
+    assert report.exercised_cases == 0
+    assert report.findings == []
+
+    blended = dimension_scores(workflow, 90, [], [], report)
+    plain = dimension_scores(workflow, 90, [], [])
+    assert _reliability(blended).score == _reliability(plain).score
+    assert "fuzz_robustness" not in _reliability(blended).calculation

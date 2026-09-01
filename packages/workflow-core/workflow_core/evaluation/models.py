@@ -14,6 +14,8 @@ class EvaluationDimension(StrEnum):
     STRUCTURAL = "structural"
     PROMPT_ALIGNMENT = "prompt_alignment"
     RELIABILITY = "reliability"
+    # Retired: no analyzer produces it and it carries no weight. Kept so evaluations
+    # stored while it was active still deserialize.
     HALLUCINATION = "hallucination"
     SECURITY = "security"
     MAINTAINABILITY = "maintainability"

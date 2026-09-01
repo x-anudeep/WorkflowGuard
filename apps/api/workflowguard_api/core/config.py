@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     ai_api_key: str | None = None
     ai_model: str = "gpt-4o-mini"
     ai_timeout_seconds: float = 20.0
+    fuzz_max_cases: int = 60
+    fuzz_default_seed: int = 1337
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="WORKFLOWGUARD_", extra="ignore")
 

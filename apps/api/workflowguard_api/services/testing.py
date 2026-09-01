@@ -77,7 +77,21 @@ class WorkflowTestingService:
                 self.db.delete(existing)
             self.db.flush()
 
-        records = [self._persist_test(record.id, version.id, test) for test in _dedupe_tests(tests)]
+        # Generation is idempotent by name. `_dedupe_tests` only collapses duplicates
+        # within this batch; without also skipping names already stored, every press of
+        # "Generate Tests" re-persisted the whole corpus and doubled the test count.
+        existing_names = (
+            set()
+            if replace_existing
+            else {existing.name for existing in self.list_tests(workflow_id)}
+        )
+        fresh = [test for test in _dedupe_tests(tests) if test.name not in existing_names]
+        if not fresh and existing_names:
+            warnings.append(
+                "No new tests were generated; the existing suite already covers every "
+                "generated case. Use replace_existing to regenerate it from scratch."
+            )
+        records = [self._persist_test(record.id, version.id, test) for test in fresh]
         self.db.commit()
         return (
             TestGenerationResult(
