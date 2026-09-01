@@ -913,6 +913,7 @@ def _fuzz_run(run) -> FuzzRunRead:
         ai_metadata=run.ai_metadata,
         findings=run.findings,
         limitations=run.limitations,
+        suggestions=run.suggestions,
         created_at=run.created_at,
         cases=[
             FuzzCaseRead(

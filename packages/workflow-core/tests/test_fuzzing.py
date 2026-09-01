@@ -1,3 +1,4 @@
+from workflow_core.analysis import diagnose_entrypoints
 from workflow_core.canonical.models import (
     Edge,
     Node,
@@ -314,3 +315,56 @@ def test_failure_behind_a_branch_is_measured_instead_of_discarded() -> None:
         "derived from the branch conditions" in " ".join(result.evidence) for result in fired
     )
     assert report.exercised_cases > 0
+
+
+def _misanchored_workflow() -> Workflow:
+    """A typed Start that was never connected, with the real chain orphaned beside it."""
+    return Workflow(
+        name="Mis-anchored",
+        source_format=SourceFormat.QUBI,
+        nodes=[
+            Node(id="start", name="Start", type=NodeType.TRIGGER),
+            Node(id="fetch", name="Fetch Claims", type=NodeType.EXTERNAL_API),
+            Node(id="score", name="Score Claim", type=NodeType.LLM),
+            Node(id="pay", name="Pay Claim", type=NodeType.EXTERNAL_API),
+            Node(id="end", name="End", type=NodeType.END),
+        ],
+        edges=[
+            Edge(id="e1", source="fetch", target="score"),
+            Edge(id="e2", source="score", target="pay"),
+            Edge(id="e3", source="pay", target="end"),
+        ],
+    )
+
+
+def test_mis_anchored_start_is_reported_as_a_suggestion() -> None:
+    workflow = _misanchored_workflow()
+    diagnosis = diagnose_entrypoints(workflow)
+
+    assert diagnosis is not None
+    assert diagnosis.declared_reach == 1
+    assert diagnosis.candidate_name == "Fetch Claims"
+    assert diagnosis.candidate_reach == 4
+    assert "'Start'" in diagnosis.suggestion
+    assert "Fetch Claims" in diagnosis.suggestion
+
+
+def test_healthy_workflows_get_no_entrypoint_suggestion() -> None:
+    assert diagnose_entrypoints(_guarded_workflow()) is None
+    assert diagnose_entrypoints(_gated_workflow()) is None
+
+
+def test_entrypoint_suggestion_does_not_change_any_score() -> None:
+    """The whole point: advice must not move reliability, penalties, or robustness."""
+    workflow = _misanchored_workflow()
+    report = FuzzEngine().run(workflow, max_cases=200)
+
+    assert report.suggestions, "the mis-anchored start should be reported"
+    # Reported, but nothing measurable changed: no cases fired, so no blend happens.
+    assert report.exercised_cases == 0
+    assert report.findings == []
+
+    blended = dimension_scores(workflow, 90, [], [], report)
+    plain = dimension_scores(workflow, 90, [], [])
+    assert _reliability(blended).score == _reliability(plain).score
+    assert "fuzz_robustness" not in _reliability(blended).calculation

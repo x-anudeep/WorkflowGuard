@@ -148,6 +148,7 @@ class FuzzService:
                 "ai_model": run.ai_model,
                 "ai_metadata": run.ai_metadata,
                 "limitations": run.limitations,
+                "suggestions": run.suggestions,
             }
         )
 
@@ -213,6 +214,7 @@ class FuzzService:
             ai_metadata=dict(report.ai_metadata),
             findings=[finding.model_dump(mode="json") for finding in report.findings],
             limitations=list(report.limitations),
+            suggestions=list(report.suggestions),
         )
         self.db.add(run)
         self.db.flush()

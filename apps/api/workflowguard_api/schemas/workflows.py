@@ -361,6 +361,7 @@ class FuzzRunRead(BaseModel):
     ai_metadata: dict[str, Any] = Field(default_factory=dict)
     findings: list[dict[str, Any]] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
     created_at: datetime
     cases: list[FuzzCaseRead] = Field(default_factory=list)
 

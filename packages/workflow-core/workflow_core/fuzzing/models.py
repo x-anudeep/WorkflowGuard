@@ -87,6 +87,8 @@ class FuzzReport(BaseModel):
     ai_model: str | None = None
     ai_metadata: dict[str, Any] = Field(default_factory=dict)
     limitations: list[str] = Field(default_factory=list)
+    #: Actionable advice about the workflow itself. Never affects any score.
+    suggestions: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = ConfigDict(use_enum_values=True)

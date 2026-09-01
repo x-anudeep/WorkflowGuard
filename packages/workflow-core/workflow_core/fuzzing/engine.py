@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
+from workflow_core.analysis.entrypoints import diagnose_entrypoints
 from workflow_core.analysis.failure_paths import is_failure_edge
 from workflow_core.canonical.models import Edge, Node, NodeType, Workflow
 from workflow_core.evaluation.models import RequirementSpec
@@ -104,9 +105,13 @@ class FuzzEngine:
             report.limitations.insert(
                 0,
                 "No fuzz case perturbed this workflow, so its robustness is unmeasured "
-                "rather than proven. Check that the graph is connected and has external "
-                "dependencies to fail.",
+                "rather than proven.",
             )
+        # Advice, not a finding: a mis-wired entry point explains an unmeasurable result
+        # without silently changing what the score means.
+        diagnosis = diagnose_entrypoints(workflow)
+        if diagnosis is not None:
+            report.suggestions.append(diagnosis.suggestion)
         return report
 
     def _baseline(self, workflow: Workflow) -> SimulationResult:

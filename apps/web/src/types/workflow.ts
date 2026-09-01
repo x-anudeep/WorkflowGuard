@@ -420,6 +420,7 @@ export interface FuzzRun {
   ai_metadata: Record<string, string>;
   findings: Array<Record<string, unknown>>;
   limitations: string[];
+  suggestions: string[];
   created_at: string;
   cases: FuzzCase[];
 }

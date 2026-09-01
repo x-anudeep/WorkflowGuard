@@ -318,6 +318,7 @@ class FuzzRunRecord(Base):
     ai_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(json_type()), default=dict, nullable=False)
     findings: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
     limitations: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
+    suggestions: Mapped[list] = mapped_column(json_type(), default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     workflow: Mapped[WorkflowRecord] = relationship(back_populates="fuzz_runs")

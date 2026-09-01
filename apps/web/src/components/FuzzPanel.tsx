@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Bug, ShieldAlert, Zap } from "lucide-react";
+import { Bug, Lightbulb, ShieldAlert, Zap } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -161,6 +161,20 @@ export function FuzzPanel({
             {showAll ? "Hide cases that never fired" : `Show all ${run.total_cases} cases`}
           </button>
         </>
+      )}
+
+      {run && run.suggestions.length > 0 && (
+        <div className="grid gap-2 border border-amber-500 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="flex items-center gap-2 font-medium">
+            <Lightbulb size={16} /> Suggested fix for this workflow
+          </div>
+          {run.suggestions.map((suggestion) => (
+            <p key={suggestion}>{suggestion}</p>
+          ))}
+          <p className="text-xs text-amber-700">
+            Advice only - this does not change any score.
+          </p>
+        </div>
       )}
 
       {run && run.limitations.length > 0 && (
