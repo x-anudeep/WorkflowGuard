@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from workflow_core.canonical.models import ValidationFinding, Workflow
 from workflow_core.evaluation.alignment import AlignmentAnalyzer
-from workflow_core.evaluation.hallucination import HallucinationAnalyzer
 from workflow_core.evaluation.maintainability import MaintainabilityAnalyzer
 from workflow_core.evaluation.models import EvaluationResult, RequirementSpec
 from workflow_core.evaluation.reliability import ReliabilityAnalyzer
@@ -17,7 +16,6 @@ class SemanticEvaluationEngine:
         self.extractor = DeterministicRequirementExtractor()
         self.alignment = AlignmentAnalyzer()
         self.reliability = ReliabilityAnalyzer()
-        self.hallucination = HallucinationAnalyzer()
         self.security = SecurityAnalyzer()
         self.maintainability = MaintainabilityAnalyzer()
 
@@ -41,7 +39,6 @@ class SemanticEvaluationEngine:
             findings.extend(alignment_findings)
 
         findings.extend(self.reliability.analyze(workflow))
-        findings.extend(self.hallucination.analyze(workflow))
         findings.extend(self.security.analyze(workflow))
         findings.extend(self.maintainability.analyze(workflow))
         if fuzz_report is not None:

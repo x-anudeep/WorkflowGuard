@@ -24,12 +24,14 @@ PENALTIES = {
 #: from statically declared error handling. Only applied when a fuzz report exists.
 FUZZ_BLEND_WEIGHT = 0.40
 
+# Restored to their pre-hallucination values so they still sum to 1.0. Simply deleting
+# the 0.15 hallucination weight would have left them summing to 0.85 and quietly cut
+# every overall score by 15%.
 DIMENSION_WEIGHTS = {
-    EvaluationDimension.STRUCTURAL: 0.20,
-    EvaluationDimension.PROMPT_ALIGNMENT: 0.25,
+    EvaluationDimension.STRUCTURAL: 0.25,
+    EvaluationDimension.PROMPT_ALIGNMENT: 0.30,
     EvaluationDimension.RELIABILITY: 0.15,
-    EvaluationDimension.HALLUCINATION: 0.15,
-    EvaluationDimension.SECURITY: 0.15,
+    EvaluationDimension.SECURITY: 0.20,
     EvaluationDimension.MAINTAINABILITY: 0.10,
 }
 
@@ -52,7 +54,6 @@ def dimension_scores(
     for dimension in [
         EvaluationDimension.PROMPT_ALIGNMENT,
         EvaluationDimension.RELIABILITY,
-        EvaluationDimension.HALLUCINATION,
         EvaluationDimension.SECURITY,
         EvaluationDimension.MAINTAINABILITY,
     ]:

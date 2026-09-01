@@ -40,7 +40,6 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
   const reliabilityLabel = `${scoreValue(dimensions.reliability)}${reliabilityMeasured ? " measured" : " declared"}`;
   const securityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "security") ?? [];
   const reliabilityFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "reliability") ?? [];
-  const hallucinationFindings = latestEvaluation?.findings.filter((finding) => finding.dimension === "hallucination") ?? [];
   const testsHaveRun = testRuns.runs.length > 0;
   const testsLabel = tests.length === 0 ? "No tests" : testsHaveRun ? `${testRuns.passed}/${testRuns.total_tests} passing` : `${tests.length} not run`;
   const coverageLabel = testsHaveRun ? `${testRuns.latest_coverage.toFixed(0)}%` : "Not measured";
@@ -118,7 +117,6 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
             <StatusCard label="Matches requirement" value={scoreValue(dimensions.prompt_alignment)} tone={scoreCardTone(dimensions.prompt_alignment)} />
             <StatusCard label="Secure" value={scoreValue(dimensions.security)} tone={scoreCardTone(dimensions.security)} />
             <StatusCard label="Reliable" value={reliabilityLabel} tone={scoreCardTone(dimensions.reliability)} />
-            <StatusCard label="Hallucination Rate" value={scoreValue(dimensions.hallucination)} tone={scoreCardTone(dimensions.hallucination)} />
             <StatusCard label="Tests" value={testsLabel} tone={!testsHaveRun || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
             <StatusCard label="Coverage" value={coverageLabel} tone={testsHaveRun && testRuns.latest_coverage >= 85 ? "good" : "bad"} />
             <StatusCard label="Cost" value={`$${cost.monthly_cost.toFixed(2)}/mo`} />
@@ -145,12 +143,9 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
               </div>
             </div>
           )}
-          {latestEvaluation && (securityFindings.length > 0 || reliabilityFindings.length > 0 || hallucinationFindings.length > 0) && (
+          {latestEvaluation && (securityFindings.length > 0 || reliabilityFindings.length > 0) && (
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {reliabilityFindings.slice(0, 3).map((finding) => (
-                <FindingSummary key={`${finding.rule_id}-${finding.message}`} title={finding.title} severity={finding.severity} message={finding.message} />
-              ))}
-              {hallucinationFindings.slice(0, 3).map((finding) => (
                 <FindingSummary key={`${finding.rule_id}-${finding.message}`} title={finding.title} severity={finding.severity} message={finding.message} />
               ))}
               {securityFindings.slice(0, 3).map((finding) => (
