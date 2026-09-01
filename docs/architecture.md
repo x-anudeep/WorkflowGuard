@@ -45,7 +45,7 @@ docker/     Service Dockerfiles
 
 ## Canonical Workflow Representation
 
-Every supported source format converts into a `Workflow` with:
+Supported source formats are BPMN, n8n, qubi flow exports, and a generic JSON schema. Every one converts into a `Workflow` with:
 
 - stable workflow metadata, source format, source type, optional source prompt
 - typed `Node` records with provider-specific configuration and preserved metadata
@@ -92,7 +92,7 @@ Every evaluation finding is explainable: expected behavior, observed behavior, r
 
 ## AI Provider Boundary
 
-The API owns provider adapters. The core evaluation and testing engines do not depend on an AI vendor. `WORKFLOWGUARD_AI_PROVIDER=none` runs the system in deterministic mode. `openai` can be configured with `WORKFLOWGUARD_AI_API_KEY`, `WORKFLOWGUARD_AI_MODEL`, and `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`.
+The API owns provider adapters. The core evaluation and testing engines do not depend on an AI vendor. `WORKFLOWGUARD_AI_PROVIDER=none` runs the system in deterministic mode. `openai` and `groq` can be configured with `WORKFLOWGUARD_AI_API_KEY`, `WORKFLOWGUARD_AI_MODEL`, and `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`. Groq is used through its OpenAI-compatible chat-completions endpoint and covers requirement extraction, test generation, repair, and fuzz-case generation.
 
 Provider timeouts, malformed responses, credential failures, rate limits, and request errors are handled gracefully and fall back to deterministic requirement extraction, deterministic test generation, and deterministic repair patches. Raw model output is never trusted or stored without schema validation.
 
@@ -109,7 +109,20 @@ Part 3 introduces `workflow_core.testing`:
 
 External integrations are mocked by default. Failure injection models timeouts, rate limits, HTTP 500s, authorization errors, unavailable dependencies, and malformed LLM output without calling real services or executing uploaded code.
 
-The `workflowguard` CLI exposes `validate`, `evaluate`, and `test` commands with stable exit codes for future GitHub Actions use.
+## Fuzz Testing
+
+`workflow_core.fuzzing` measures error handling rather than inferring it:
+
+- `DeterministicFuzzGenerator`: seeded, reproducible corpus of input mutations and dependency-failure scenarios
+- `FuzzEngine`: executes cases through the sandboxed simulator and classifies each outcome as handled, silently swallowed, crashed, hung, or not triggered
+- `fuzz_findings`: `WG-FUZZ-001` to `WG-FUZZ-004` reliability findings carrying reproduction seeds
+- `robustness_score`: share of exercised cases the workflow survived
+
+`workflow_core.analysis.failure_paths` decides whether an edge is an error path, using whole-word matching on human labels and polarity-aware analysis on branch expressions, so `result.success == false` is recognised as a failure path while `result.success == true` is not.
+
+Fuzz results are persisted as `fuzz_runs` / `fuzz_cases` and blended into the reliability dimension. See `docs/ai-evaluation.md`.
+
+The `workflowguard` CLI exposes `validate`, `evaluate`, `fuzz`, and `test` commands with stable exit codes for future GitHub Actions use.
 
 ## Cost Intelligence
 
@@ -155,6 +168,8 @@ PostgreSQL stores:
 - dimension scores
 - workflow tests
 - workflow test runs
+- fuzz runs
+- fuzz cases
 - pricing catalog
 - cost scenarios
 - cost estimates

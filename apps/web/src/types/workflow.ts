@@ -375,3 +375,51 @@ export type RepairProposal = {
   created_at: string;
   updated_at: string;
 };
+
+export type ErrorHandlingVerdict =
+  | "handled"
+  | "unhandled_crash"
+  | "silent_success"
+  | "hung"
+  | "not_triggered";
+
+export interface FuzzCase {
+  id: string;
+  case_id: string;
+  name: string;
+  description: string;
+  strategy: string;
+  verdict: ErrorHandlingVerdict;
+  observed: string;
+  generated_by: string;
+  seed: number;
+  input_data: Record<string, unknown>;
+  failure_injections: Array<Record<string, unknown>>;
+  targeted_node_ids: string[];
+  evidence: string[];
+  execution_trace: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface FuzzRun {
+  id: string;
+  workflow_id: string;
+  version_id: string;
+  seed: number;
+  total_cases: number;
+  exercised_cases: number;
+  handled: number;
+  unhandled_crash: number;
+  silent_success: number;
+  hung: number;
+  not_triggered: number;
+  robustness_score: number;
+  generated_by: string;
+  ai_provider: string | null;
+  ai_model: string | null;
+  ai_metadata: Record<string, string>;
+  findings: Array<Record<string, unknown>>;
+  limitations: string[];
+  created_at: string;
+  cases: FuzzCase[];
+}
