@@ -81,3 +81,52 @@ def test_run_all_tests_and_fetch_history(client: TestClient) -> None:
     detail = client.get(f"/api/test-runs/{run_id}")
     assert detail.status_code == 200
     assert detail.json()["id"] == run_id
+
+
+def test_generating_tests_twice_does_not_duplicate_the_suite(client: TestClient) -> None:
+    """Every press of "Generate Tests" used to re-persist the whole corpus."""
+    path = ROOT / "examples" / "json" / "valid-workflow.json"
+    workflow = client.post(
+        "/api/workflows/upload",
+        data={"source_type": "ai_generated", "source_prompt": "Fetch invoices and save them."},
+        files={"file": ("valid-workflow.json", path.read_bytes(), "application/json")},
+    ).json()
+
+    first = client.post(f"/api/workflows/{workflow['id']}/tests/generate", json={"use_ai": False})
+    assert first.status_code == 200, first.text
+    after_first = client.get(f"/api/workflows/{workflow['id']}/tests").json()
+    assert after_first
+
+    second = client.post(f"/api/workflows/{workflow['id']}/tests/generate", json={"use_ai": False})
+    assert second.status_code == 200, second.text
+    after_second = client.get(f"/api/workflows/{workflow['id']}/tests").json()
+
+    assert len(after_second) == len(after_first)
+    assert second.json()["generated"] == 0
+    names = [test["name"] for test in after_second]
+    assert len(names) == len(set(names)), "generated tests must be unique by name"
+    # The response still describes the whole suite, so the panel and the status card
+    # cannot disagree about how many tests exist.
+    assert len(second.json()["tests"]) == len(after_second)
+
+
+def test_regenerating_with_replace_existing_rebuilds_the_suite(client: TestClient) -> None:
+    path = ROOT / "examples" / "json" / "valid-workflow.json"
+    workflow = client.post(
+        "/api/workflows/upload",
+        data={"source_type": "ai_generated", "source_prompt": "Fetch invoices and save them."},
+        files={"file": ("valid-workflow.json", path.read_bytes(), "application/json")},
+    ).json()
+
+    client.post(f"/api/workflows/{workflow['id']}/tests/generate", json={"use_ai": False})
+    baseline = client.get(f"/api/workflows/{workflow['id']}/tests").json()
+
+    replaced = client.post(
+        f"/api/workflows/{workflow['id']}/tests/generate",
+        json={"use_ai": False, "replace_existing": True},
+    )
+    assert replaced.status_code == 200, replaced.text
+    after = client.get(f"/api/workflows/{workflow['id']}/tests").json()
+
+    assert len(after) == len(baseline)
+    assert replaced.json()["generated"] == len(baseline)

@@ -304,15 +304,20 @@ def generate_tests(
     db: Session = Depends(get_db),
 ) -> GenerateTestsResponse:
     try:
-        result, records = WorkflowTestingService(db).generate_tests(
+        result, all_tests = WorkflowTestingService(db).generate_tests(
             workflow_id,
             use_ai=payload.use_ai if payload else True,
             replace_existing=payload.replace_existing if payload else False,
         )
-        AuditService(db).record("tests_generated", f"Generated {len(records)} workflow tests.", workflow_id=workflow_id)
+        # `generated` counts what this call created; `tests` is the whole suite, so the
+        # panel and the status card cannot disagree about how many tests exist. These
+        # were previously both the suite size, which reported every regeneration as
+        # having generated the entire corpus again.
+        created = len(result.tests)
+        AuditService(db).record("tests_generated", f"Generated {created} workflow tests.", workflow_id=workflow_id)
         return GenerateTestsResponse(
-            generated=len(records),
-            tests=[_workflow_test(record) for record in records],
+            generated=created,
+            tests=[_workflow_test(record) for record in all_tests],
             rationale=result.rationale,
             warnings=result.warnings,
         )
