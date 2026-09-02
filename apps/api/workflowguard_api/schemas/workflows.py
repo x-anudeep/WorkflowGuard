@@ -120,16 +120,24 @@ class AuditEventRead(BaseModel):
 
 
 class QualityGateConfigRead(BaseModel):
-    structural_min: float = 90
-    prompt_alignment_min: float = 90
-    security_min: float = 85
-    reliability_min: float = 80
-    maintainability_min: float = 70
-    test_coverage_min: float = 85
-    require_all_critical_tests_pass: bool = True
-    allow_critical_security_findings: bool = False
-    monthly_cost_increase_max_percent: float = 20
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Threshold overrides for one gate run.
+
+    Every field is optional and unset fields fall through to `QualityGateConfig`, which owns
+    the defaults. Restating the numbers here made this a second source of truth: posting an
+    empty body silently applied *these* defaults, so recalibrating the real config had no
+    effect on any request that sent one.
+    """
+
+    structural_min: float | None = None
+    prompt_alignment_min: float | None = None
+    security_min: float | None = None
+    reliability_min: float | None = None
+    maintainability_min: float | None = None
+    test_coverage_min: float | None = None
+    require_all_critical_tests_pass: bool | None = None
+    allow_critical_security_findings: bool | None = None
+    monthly_cost_increase_max_percent: float | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class QualityGateReasonRead(BaseModel):

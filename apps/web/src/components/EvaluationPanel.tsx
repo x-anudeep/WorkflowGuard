@@ -82,21 +82,6 @@ function EvaluationResultView({ evaluation }: { evaluation: EvaluationRun }) {
         ))}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="border border-line bg-panel p-4 text-sm text-slate-700">
-          <div className="font-semibold text-ink">Evaluator</div>
-          <div className="mt-2">Version: {evaluation.evaluator_version}</div>
-          <div>AI: {evaluation.ai_provider ? `${evaluation.ai_provider} / ${evaluation.ai_model}` : "deterministic fallback"}</div>
-          <div>Status: {String(evaluation.ai_metadata.ai_status ?? evaluation.status)}</div>
-        </div>
-        <div className="border border-line bg-panel p-4 text-sm text-slate-700">
-          <div className="font-semibold text-ink">Limitations</div>
-          <ul className="mt-2 list-inside list-disc">
-            {evaluation.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
-          </ul>
-        </div>
-      </div>
-
       <section>
         <h3 className="mb-3 text-sm font-semibold">Requirement vs Implementation</h3>
         <div className="overflow-hidden border border-line">

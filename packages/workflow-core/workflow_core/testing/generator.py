@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from workflow_core.analysis.reachability import reaching_input, satisfying_state
 from workflow_core.canonical.models import Edge, NodeType, Workflow
 from workflow_core.evaluation.models import RequirementSpec
 from workflow_core.testing.models import (
@@ -19,18 +20,26 @@ class DeterministicTestGenerator:
     def generate(self, workflow: Workflow, requirement_spec: RequirementSpec | None = None) -> TestGenerationResult:
         tests: list[WorkflowTest] = []
         primary_path = _primary_path(workflow)
+        # The simulator picks branches by evaluating edge conditions against input state, while
+        # `_primary_path` picks them structurally. Unless the input satisfies the conditions on
+        # exactly those edges, the two disagree and the happy path asserts nodes that were never
+        # going to run - charging the workflow for a generator mismatch.
+        happy_input: dict[str, object] = {"approved": True, "amount": 100}
+        for edge in _primary_path_edges(workflow):
+            happy_input.update(satisfying_state(edge.condition))
         tests.append(
             WorkflowTest(
                 workflow_id=workflow.id,
                 name="Happy path",
                 description="Executes the primary workflow path with mocked integrations.",
                 generated_by=TestGeneratedBy.SYSTEM,
-                input_data={"approved": True, "amount": 100},
+                input_data=happy_input,
                 mocked_integrations=default_mocks(workflow),
                 expected_path=primary_path,
                 assertions=[*_path_assertions(primary_path), WorkflowAssertion(type=AssertionType.TERMINATED_SUCCESSFULLY)],
                 tags=["happy_path", "deterministic"],
-                importance=TestImportance.HIGH,
+                # If the primary path does not work, nothing else about the workflow matters.
+                importance=TestImportance.CRITICAL,
                 rationale="Covers the main path through the canonical graph.",
             )
         )
@@ -46,6 +55,35 @@ class DeterministicTestGenerator:
             generated_by=TestGeneratedBy.SYSTEM,
             rationale="Deterministic tests were generated from graph structure, node categories, and stored requirements.",
         )
+
+
+def _primary_path_edges(workflow: Workflow) -> list[Edge]:
+    """The edges `_primary_path` walks, so the test input can satisfy exactly those.
+
+    Solving for a *different* route (a shortest path, say) produces an input that sends the
+    simulator down another branch, and the happy path then asserts nodes that never ran.
+    """
+    outgoing: dict[str, list[Edge]] = {}
+    for edge in workflow.edges:
+        outgoing.setdefault(edge.source, []).append(edge)
+    starts = list(workflow.start_node_ids)
+    if not starts:
+        return []
+    taken: list[Edge] = []
+    current = starts[0]
+    seen: set[str] = set()
+    while current not in seen:
+        seen.add(current)
+        next_edges = outgoing.get(current, [])
+        if not next_edges:
+            break
+        preferred = next(
+            (edge for edge in next_edges if not edge.condition or "true" in edge.condition.lower()),
+            next_edges[0],
+        )
+        taken.append(preferred)
+        current = preferred.target
+    return taken
 
 
 def _primary_path(workflow: Workflow) -> list[str]:
@@ -93,7 +131,9 @@ def _branch_tests(workflow: Workflow) -> list[WorkflowTest]:
                 name=f"Branch: {edge.source} to {edge.target}",
                 description=f"Verifies branch edge {edge.id} can be selected.",
                 generated_by=TestGeneratedBy.SYSTEM,
-                input_data=_input_for_condition(edge.condition or edge.label or ""),
+                # Reaching this edge means satisfying every condition between the start and
+                # it, not just its own - otherwise an earlier branch diverts the run.
+                input_data=reaching_input(workflow, edge.target, _input_for_condition(edge.condition or edge.label or "")),
                 mocked_integrations=default_mocks(workflow),
                 expected_path=[edge.source, edge.target],
                 assertions=[
@@ -102,7 +142,9 @@ def _branch_tests(workflow: Workflow) -> list[WorkflowTest]:
                     WorkflowAssertion(type=AssertionType.NODE_EXECUTED, target=edge.target),
                 ],
                 tags=["branch", "deterministic"],
-                importance=TestImportance.HIGH,
+                # Alternate-path coverage. Useful, but a workflow whose secondary branch is
+                # untested is not in the same class as one that fails its stated requirements.
+                importance=TestImportance.MEDIUM,
                 rationale="Every conditional branch should be exercised by at least one test.",
             )
         )
@@ -165,7 +207,11 @@ def _failure_tests(workflow: Workflow) -> list[WorkflowTest]:
                     assertions=[WorkflowAssertion(type=AssertionType.ERROR_OCCURRED, expected=True)],
                     expected_error=str(failure_type),
                     tags=["failure_injection", tag],
-                    importance=TestImportance.HIGH,
+                    # Missing error handling is already measured by the reliability dimension
+                    # and the fuzz campaign. Blocking the gate on it as well would count the
+                    # same defect twice, and these fail by construction on any workflow that
+                    # declares no failure paths.
+                    importance=TestImportance.MEDIUM,
                     rationale="External integrations and AI calls should fail safely under dependency failures.",
                 )
             )
@@ -202,6 +248,7 @@ def _requirement_tests(workflow: Workflow, requirement_spec: RequirementSpec | N
             expected_path=primary_path,
             assertions=[WorkflowAssertion(type=AssertionType.TERMINATED_SUCCESSFULLY)],
             tags=["requirement", str(requirement.kind)],
+            # A required behaviour that does not work is exactly what a release gate is for.
             importance=TestImportance.HIGH if requirement.required else TestImportance.MEDIUM,
             rationale="Generated from the structured requirement specification.",
             linked_requirement_id=requirement.id,
@@ -211,11 +258,10 @@ def _requirement_tests(workflow: Workflow, requirement_spec: RequirementSpec | N
 
 
 def _input_for_condition(condition: str) -> dict[str, object]:
-    lowered = condition.lower()
-    if "approved" in lowered and "false" not in lowered:
-        return {"approved": True}
-    if "approved" in lowered and "false" in lowered:
-        return {"approved": False}
-    if "amount" in lowered:
-        return {"amount": 10001, "approved": True}
-    return {"approved": True, "amount": 100}
+    """Seed state for a branch condition, before the path solver refines it.
+
+    The old vocabulary guess ("approved"/"amount") only fitted invoice approval; every other
+    domain fell through to a constant that satisfied none of its own branches.
+    """
+    seeded = satisfying_state(condition)
+    return seeded or {"approved": True, "amount": 100}

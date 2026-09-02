@@ -28,6 +28,7 @@ class QualityGateService:
         evaluation = self._latest_evaluation(workflow_id)
         dimensions = _dimensions(evaluation)
         latest_coverage = self._latest_coverage(workflow_id)
+        critical_failures, critical_total = self._critical_test_failures(workflow_id)
         result = QualityGateEngine(config).evaluate(
             structural_score=validation.structural_quality_score if validation else None,
             prompt_alignment_score=dimensions.get("prompt_alignment"),
@@ -35,7 +36,8 @@ class QualityGateService:
             reliability_score=dimensions.get("reliability"),
             maintainability_score=dimensions.get("maintainability"),
             test_coverage=latest_coverage,
-            critical_test_failures=self._critical_test_failures(workflow_id),
+            critical_test_failures=critical_failures,
+            critical_test_total=critical_total,
             critical_security_findings=self._critical_security_findings(evaluation),
         )
         run = QualityGateRunRecord(
@@ -105,7 +107,14 @@ class QualityGateService:
         )
         return float((run.coverage or {}).get("overall_coverage") or 0) if run else None
 
-    def _critical_test_failures(self, workflow_id: uuid.UUID) -> int:
+    def _critical_test_failures(self, workflow_id: uuid.UUID) -> tuple[int, int]:
+        """Failing high-importance tests, and how many there are in total.
+
+        "High importance" is the happy path, security defences, and one test per stated
+        requirement. It deliberately excludes branch-coverage and failure-injection tests:
+        missing error handling is already scored by the reliability dimension and the fuzz
+        campaign, so gating on it here would count the same defect twice.
+        """
         tests = list(
             self.db.execute(select(WorkflowTestRecord).where(WorkflowTestRecord.workflow_id == workflow_id))
             .scalars()
@@ -124,7 +133,12 @@ class QualityGateService:
         for run in latest_runs:
             latest_by_test.setdefault(run.test_id, run)
         critical_ids = {test.id for test in tests if test.importance.upper() in {"HIGH", "CRITICAL"}}
-        return sum(1 for test_id in critical_ids if latest_by_test.get(test_id) and latest_by_test[test_id].status in {"FAILED", "ERROR"})
+        failures = sum(
+            1
+            for test_id in critical_ids
+            if latest_by_test.get(test_id) and latest_by_test[test_id].status in {"FAILED", "ERROR"}
+        )
+        return failures, len(critical_ids)
 
     @staticmethod
     def _critical_security_findings(evaluation: EvaluationRun | None) -> int:

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from workflow_core.canonical.models import Workflow
 from workflow_core.repair import RepairPatch
 
-from workflowguard_api.ai.groq_client import groq_json_completion
+from workflowguard_api.ai.groq_client import groq_json_completion, response_json
 from workflowguard_api.ai.providers import (
     AIProviderError,
     AIProviderUnavailable,
@@ -85,7 +85,7 @@ class OpenAIRepairProvider(RepairProvider):
         except httpx.HTTPError as exc:
             raise AIProviderError("AI provider request failed.") from exc
 
-        text = _extract_response_text(response.json())
+        text = _extract_response_text(response_json(response))
         try:
             return RepairPatch.model_validate_json(text)
         except (ValidationError, ValueError):

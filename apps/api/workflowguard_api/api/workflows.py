@@ -636,7 +636,9 @@ def check_quality_gate(
     db: Session = Depends(get_db),
 ) -> QualityGateRunRead:
     try:
-        config = QualityGateConfig.model_validate(payload.model_dump()) if payload else None
+        # Only the fields actually supplied override the configured defaults.
+        overrides = payload.model_dump(exclude_none=True) if payload else {}
+        config = QualityGateConfig(**overrides) if overrides else None
         run = QualityGateService(db).check(workflow_id, config)
         AuditService(db).record("quality_gate_checked", f"Quality gate {run.status}.", workflow_id=workflow_id, version_id=run.version_id)
         return _quality_gate_run(run)

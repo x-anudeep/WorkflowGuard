@@ -21,6 +21,7 @@ class QualityGateEngine:
         maintainability_score: float | None = None,
         test_coverage: float | None = None,
         critical_test_failures: int = 0,
+        critical_test_total: int | None = None,
         critical_security_findings: int = 0,
         monthly_cost_before: float | None = None,
         monthly_cost_after: float | None = None,
@@ -38,10 +39,19 @@ class QualityGateEngine:
                 QualityGateReason(
                     rule_id="WG-GATE-TESTS",
                     passed=critical_test_failures == 0,
-                    title="Critical tests",
-                    message="All critical workflow tests must pass.",
-                    expected="0 critical failed/error tests",
-                    actual=str(critical_test_failures),
+                    title="High-importance tests",
+                    message=(
+                        "Every high-importance test - the happy path, security defences, and each "
+                        "stated requirement - must pass."
+                    ),
+                    expected="0 failed or errored",
+                    # A bare count next to "expected 0" gave no sense of scale and hid that some
+                    # of those tests errored rather than failed.
+                    actual=(
+                        f"{critical_test_failures} of {critical_test_total} failed or errored"
+                        if critical_test_total
+                        else f"{critical_test_failures} failed or errored"
+                    ),
                     severity="CRITICAL" if critical_test_failures else "INFO",
                 )
             )
