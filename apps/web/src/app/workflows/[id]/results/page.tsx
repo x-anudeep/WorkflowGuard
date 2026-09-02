@@ -43,6 +43,11 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
   const testsHaveRun = testRuns.runs.length > 0;
   const testsLabel = tests.length === 0 ? "No tests" : testsHaveRun ? `${testRuns.passed}/${testRuns.total_tests} passing` : `${tests.length} not run`;
   const coverageLabel = testsHaveRun ? `${testRuns.latest_coverage.toFixed(0)}%` : "Not measured";
+  // Percentage view of the same pass/fail counts as the "Tests" tile above -- how many
+  // of the workflow's generated tasks/tests actually succeeded when last run.
+  const taskSuccessRate = testsHaveRun && testRuns.total_tests > 0 ? (testRuns.passed / testRuns.total_tests) * 100 : null;
+  const taskSuccessRateLabel = taskSuccessRate === null ? "Not measured" : `${taskSuccessRate.toFixed(0)}%`;
+  const taskSuccessRateTone = taskSuccessRate === null ? "bad" : taskSuccessRate >= 85 ? "good" : taskSuccessRate >= 65 ? "warn" : "bad";
   const displayPrompt = readablePrompt(workflow.source_prompt);
   const evaluationAttention = (latestEvaluation?.findings ?? [])
     .filter((finding) => finding.severity === "CRITICAL" || finding.severity === "ERROR")
@@ -118,6 +123,7 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
             <StatusCard label="Secure" value={scoreValue(dimensions.security)} tone={scoreCardTone(dimensions.security)} />
             <StatusCard label="Reliable" value={reliabilityLabel} tone={scoreCardTone(dimensions.reliability)} />
             <StatusCard label="Tests" value={testsLabel} tone={!testsHaveRun || testRuns.failed + testRuns.error > 0 ? "bad" : "good"} />
+            <StatusCard label="Task Success Rate" value={taskSuccessRateLabel} tone={taskSuccessRateTone} />
             <StatusCard label="Coverage" value={coverageLabel} tone={testsHaveRun && testRuns.latest_coverage >= 85 ? "good" : "bad"} />
             <StatusCard label="Cost" value={`$${cost.monthly_cost.toFixed(2)}/mo`} />
             <StatusCard label="Quality gate" value={qualityGate?.status ?? "Not checked"} tone={qualityGate?.status === "PASS" ? "good" : "bad"} />
