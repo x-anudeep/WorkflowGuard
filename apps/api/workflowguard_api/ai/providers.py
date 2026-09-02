@@ -13,7 +13,7 @@ from workflowguard_api.ai.errors import (
     AIProviderUnavailable,
     MalformedAIResponse,
 )
-from workflowguard_api.ai.groq_client import groq_json_completion
+from workflowguard_api.ai.groq_client import groq_json_completion, response_json
 from workflowguard_api.core.config import Settings
 
 __all__ = [
@@ -96,7 +96,7 @@ class OpenAIResponsesProvider(RequirementExtractionProvider):
         except httpx.HTTPError as exc:
             raise AIProviderError("AI provider request failed.") from exc
 
-        data = response.json()
+        data = response_json(response)
         text = _extract_response_text(data)
         try:
             return RequirementSpec.model_validate_json(text)

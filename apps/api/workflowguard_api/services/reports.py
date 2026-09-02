@@ -5,10 +5,12 @@ from typing import Any
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
-from workflow_core.reporting import render_markdown_report
+from workflow_core.reporting import render_html_report, render_markdown_report
 
 from workflowguard_api.models.db import EvaluationRun, ValidationRun
+from workflowguard_api.services.attachments import AttachmentService
 from workflowguard_api.services.costs import CostService
+from workflowguard_api.services.fuzzing import FuzzService
 from workflowguard_api.services.quality import QualityGateService
 from workflowguard_api.services.testing import WorkflowTestingService
 from workflowguard_api.services.workflows import WorkflowService
@@ -28,6 +30,8 @@ class ReportService:
         test_summary = _test_summary(tests)
         cost = CostService(self.db).latest_estimate(workflow_id)
         gate = QualityGateService(self.db).latest(workflow_id)
+        fuzz = FuzzService(self.db).latest_run(workflow_id)
+        attachments = AttachmentService(self.db).list_for_workflow(workflow_id)
         dimensions = {score.dimension: score.score for score in evaluation.dimension_scores} if evaluation else {}
         return {
             "workflow": {
@@ -59,6 +63,29 @@ class ReportService:
             "validation_findings": [_validation_finding(finding) for finding in (validation.findings if validation else [])],
             "evaluation_findings": [_evaluation_finding(finding) for finding in (evaluation.findings if evaluation else [])],
             "requirement_matches": evaluation.requirement_matches if evaluation else [],
+            # Where the requirements came from. 31 of C02's matches originate in an attached
+            # BRD, which the report previously gave no way to know.
+            "requirement_documents": [
+                {
+                    "id": str(item.id),
+                    "kind": item.kind,
+                    "filename": item.filename,
+                    "clause_count": item.clause_count,
+                }
+                for item in attachments
+            ],
+            # Reliability is 60% declared / 40% measured once a campaign exists, so quoting the
+            # score without the campaign behind it is not reviewable.
+            "fuzz": _fuzz_summary(fuzz, evaluation),
+            # The caveats that qualify the numbers above - notably whether requirement matching
+            # ran with an AI provider or fell back to keyword matching.
+            "limitations": list(evaluation.limitations or []) if evaluation else [],
+            "ai": {
+                "provider": evaluation.ai_provider if evaluation else None,
+                "model": evaluation.ai_model if evaluation else None,
+                "metadata": dict(evaluation.ai_metadata or {}) if evaluation else {},
+                "evaluator_version": evaluation.evaluator_version if evaluation else None,
+            },
             "tests": test_summary,
             "cost": {
                 "cost_per_run": cost.cost_per_run,
@@ -81,9 +108,7 @@ class ReportService:
         return render_markdown_report(self.build(workflow_id))
 
     def html(self, workflow_id: uuid.UUID) -> str:
-        markdown = self.markdown(workflow_id)
-        body = "\n".join(f"<p>{line}</p>" if line and not line.startswith("#") else f"<h1>{line[2:]}</h1>" for line in markdown.splitlines())
-        return f"<!doctype html><html><head><meta charset='utf-8'><title>WorkflowGuard Report</title></head><body>{body}</body></html>"
+        return render_html_report(self.build(workflow_id))
 
     def _latest_validation(self, workflow_id: uuid.UUID) -> ValidationRun | None:
         return (
@@ -153,7 +178,36 @@ def _evaluation_finding(finding) -> dict[str, Any]:
         "message": finding.message,
         "expected": finding.expected,
         "found": finding.found,
+        "why_it_matters": finding.why_it_matters,
         "node_id": finding.node_id,
+        "path": list(finding.path_json or []),
         "remediation": finding.remediation,
         "confidence": finding.confidence,
+    }
+
+
+def _fuzz_summary(run, evaluation) -> dict[str, Any] | None:
+    if run is None:
+        return None
+    # A campaign run *after* the last evaluation is not in the reliability score yet, which is
+    # how the report ended up printing a robustness figure directly above a limitation saying
+    # no campaign had been run.
+    reflected = bool(
+        evaluation
+        and run.version_id == evaluation.version_id
+        and run.created_at <= evaluation.created_at
+    )
+    return {
+        "reflected_in_scores": reflected,
+        "robustness_score": run.robustness_score,
+        "total_cases": run.total_cases,
+        "exercised_cases": run.exercised_cases,
+        "handled": run.handled,
+        "unhandled_crash": run.unhandled_crash,
+        "silent_success": run.silent_success,
+        "hung": run.hung,
+        "not_triggered": run.not_triggered,
+        "seed": run.seed,
+        "ai_provider": run.ai_provider,
+        "ai_model": run.ai_model,
     }

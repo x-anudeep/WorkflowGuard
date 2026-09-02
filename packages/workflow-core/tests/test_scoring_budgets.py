@@ -23,6 +23,7 @@ from workflow_core.evaluation.scoring import (
     RULE_BUDGETS,
     dimension_scores,
 )
+from workflow_core.quality.models import QualityGateConfig
 
 
 def _workflow(external: int) -> Workflow:
@@ -137,3 +138,29 @@ def test_penalty_equals_the_sum_of_the_breakdown() -> None:
 
 def test_no_findings_still_scores_100() -> None:
     assert _reliability(_workflow(5), []).score == 100
+
+
+def test_quality_gate_thresholds_are_reachable_on_the_new_scale() -> None:
+    """The floors must be achievable, or the gate can only ever say no.
+
+    Under the uncapped penalty scale every workflow above ~14 nodes scored 0 on reliability,
+    so `reliability_min` could never be met and the gate carried no information.
+    """
+    config = QualityGateConfig()
+    workflow = _workflow(20)
+
+    # A workflow whose only reliability finding is the unavoidable advisory rule must clear
+    # the floor - otherwise the gate is failing it for the shape of the format, not a defect.
+    advisory_only = _reliability(
+        workflow, [_finding("WG-REL-004", 20, ValidationSeverity.INFO) for _ in range(20)]
+    )
+    assert advisory_only.score >= config.reliability_min
+
+    # But a real gap - every dependency missing a timeout and a retry - must still fail.
+    real_gaps = _reliability(
+        workflow,
+        [_finding("WG-REL-001", 20) for _ in range(20)]
+        + [_finding("WG-REL-002", 20) for _ in range(20)]
+        + [_finding("WG-REL-003", 20) for _ in range(20)],
+    )
+    assert real_gaps.score < config.reliability_min

@@ -14,7 +14,7 @@ from workflowguard_api.ai.errors import (
     AIProviderUnavailable,
     MalformedAIResponse,
 )
-from workflowguard_api.ai.groq_client import groq_json_completion
+from workflowguard_api.ai.groq_client import groq_json_completion, response_json
 from workflowguard_api.core.config import Settings
 
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
@@ -111,7 +111,11 @@ class OpenAIAlignmentProvider(AlignmentProvider):
             raise AIProviderUnavailable("OpenAI rejected the configured credentials.")
         if response.status_code >= 400:
             raise AIProviderError(f"OpenAI alignment request failed with {response.status_code}.")
-        text = response.json()["choices"][0]["message"]["content"]
+        payload_body = response_json(response)
+        try:
+            text = payload_body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise MalformedAIResponse("OpenAI response did not contain message content.") from exc
         return _clamp(text, spec, workflow, f"ai:{self.provider_name}")
 
 
