@@ -69,6 +69,28 @@ export type RequirementMatch = {
   matched_node_ids: string[];
   evidence: string;
   confidence: string;
+  /** "deterministic" or "ai:<provider>" - a keyword miss is far weaker evidence than an AI one. */
+  match_method?: string;
+};
+
+export type DocumentKind = "brd" | "pdd" | "sdd" | "other";
+
+export type Attachment = {
+  id: string;
+  workflow_id: string;
+  version_id: string | null;
+  kind: DocumentKind;
+  filename: string;
+  content_type: string | null;
+  size_bytes: number;
+  clause_count: number;
+  created_at: string;
+};
+
+export type AttachmentDetail = Attachment & {
+  raw_content: string;
+  sections: Array<{ heading: string; level: number; anchor: string; scored: boolean }>;
+  clauses: Array<{ id: string; kind: string; text: string; source_anchor: string }>;
 };
 
 export type DimensionScore = {

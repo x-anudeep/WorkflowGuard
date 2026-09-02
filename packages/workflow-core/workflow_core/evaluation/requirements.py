@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 from workflow_core.evaluation.models import (
     Confidence,
@@ -10,6 +11,9 @@ from workflow_core.evaluation.models import (
     RequirementSpec,
 )
 from workflow_core.evaluation.text import normalize_text
+
+if TYPE_CHECKING:
+    from workflow_core.documents.models import RequirementDocument
 
 ACTION_VERBS = {
     "read",
@@ -120,6 +124,116 @@ class DeterministicRequirementExtractor:
             confidence=Confidence.MEDIUM,
             metadata={"clause_count": len(clauses)},
         )
+
+
+    def extract_composite(
+        self,
+        prompt: str | None,
+        documents: "list[RequirementDocument] | None" = None,
+    ) -> RequirementSpec:
+        """Build one spec from a prompt and any attached requirement documents.
+
+        Documents are *part of* the requirements, not an alternative to them, so both sources
+        are merged into a single spec.
+        """
+        spec = self.extract(prompt) if prompt and prompt.strip() else _empty_spec()
+        return self.merge_documents(spec, documents or [], prompt=prompt)
+
+    def merge_documents(
+        self,
+        spec: RequirementSpec,
+        documents: "list[RequirementDocument]",
+        *,
+        prompt: str | None = None,
+    ) -> RequirementSpec:
+        """Fold document clauses into an existing spec, whoever produced it.
+
+        Clauses skip `_split_prompt` entirely - they are already atomic, and splitting them on
+        punctuation is what turns a BRD into dozens of spurious requirements.
+        """
+        if not documents:
+            return spec
+
+        seen = {item.normalized for item in spec.requirements if item.normalized}
+        for document in documents:
+            for clause in document.clauses:
+                normalized = normalize_text(clause.text)
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+                item = RequirementItem(
+                    kind=clause.kind,
+                    text=clause.text,
+                    normalized=normalized,
+                    source_excerpt=clause.text,
+                    source="document",
+                    source_anchor=clause.source_anchor,
+                    source_document_id=document.id,
+                    metadata=dict(clause.metadata),
+                )
+                spec.requirements.append(item)
+                if item.kind == RequirementKind.OUTPUT:
+                    spec.expected_outputs.append(item)
+                if item.kind == RequirementKind.TRIGGER and spec.trigger is None:
+                    spec.trigger = item
+                # Deliberately not added to `required_order`. A document lists requirements in
+                # presentation order - bullets inside a BR section, sections down the page - and
+                # that is not a required execution sequence. Asserting a graph path between
+                # consecutive bullets produced 8 ordering ERRORs against 1 real miss on C01,
+                # which floored the dimension for reasons that had nothing to do with alignment.
+            for constraint in document.constraints:
+                spec.constraints.append(
+                    RequirementConstraint(
+                        when=constraint.when,
+                        must=constraint.must,
+                        source_excerpt=f"{document.filename or document.title} {constraint.source_anchor}",
+                        metadata={"source": "document", "anchor": constraint.source_anchor},
+                    )
+                )
+
+        spec.source_prompt = _composite_source_text(prompt, documents)
+        spec.summary = spec.summary or _document_summary(documents)
+        spec.metadata["sources"] = {
+            "prompt": bool(prompt and prompt.strip()),
+            "documents": [
+                {
+                    "id": document.id,
+                    "kind": str(document.kind),
+                    "filename": document.filename,
+                    "clauses": len(document.clauses),
+                }
+                for document in documents
+            ],
+        }
+        return spec
+
+
+def _empty_spec() -> RequirementSpec:
+    """A spec with no prompt behind it. `source_prompt` is filled in by the caller."""
+    return RequirementSpec(
+        source_prompt="(requirements supplied by attached documents)",
+        summary="",
+        extraction_method="deterministic",
+        confidence=Confidence.MEDIUM,
+    )
+
+
+def _composite_source_text(prompt: str | None, documents: "list[RequirementDocument]") -> str:
+    """The audit record of what the workflow was actually matched against."""
+    parts = []
+    if prompt and prompt.strip():
+        parts.append(prompt.strip())
+    for document in documents:
+        anchors = sorted({clause.source_anchor for clause in document.clauses})
+        label = document.filename or document.title or str(document.kind)
+        parts.append(f"[{str(document.kind).upper()} {label}] sections: {', '.join(anchors)}")
+    return "\n\n".join(parts) or "(no requirements provided)"
+
+
+def _document_summary(documents: "list[RequirementDocument]") -> str:
+    titles = [document.title for document in documents if document.title]
+    summary = "; ".join(titles) or "Attached requirement documents"
+    return summary[:220] + ("..." if len(summary) > 220 else "")
 
 
 def _split_prompt(prompt: str) -> list[str]:

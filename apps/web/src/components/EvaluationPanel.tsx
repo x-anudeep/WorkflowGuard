@@ -104,6 +104,7 @@ function EvaluationResultView({ evaluation }: { evaluation: EvaluationRun }) {
             <thead className="bg-panel text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Requirement</th>
+                <th className="px-4 py-3">Judged by</th>
                 <th className="px-4 py-3">Workflow</th>
                 <th className="px-4 py-3">Evidence</th>
               </tr>
@@ -112,6 +113,9 @@ function EvaluationResultView({ evaluation }: { evaluation: EvaluationRun }) {
               {evaluation.requirement_matches.map((match) => (
                 <tr key={match.requirement_id} className="border-t border-line">
                   <td className="px-4 py-3">{match.requirement_text}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {!match.match_method || match.match_method === "deterministic" ? "Keyword match" : match.match_method.replace("ai:", "AI: ")}
+                  </td>
                   <td className="px-4 py-3 font-semibold">{match.status === "matched" ? "Yes" : "No"} - {match.status}</td>
                   <td className="px-4 py-3 text-slate-600">{match.evidence}</td>
                 </tr>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AttachmentsPanel } from "@/components/AttachmentsPanel";
 import { CostPanel } from "@/components/CostPanel";
 import { EvaluationPanel } from "@/components/EvaluationPanel";
 import { RepairPanel } from "@/components/RepairPanel";
@@ -18,7 +19,7 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
   if (!isUuid(id)) {
     notFound();
   }
-  const [workflow, validation, evaluations, tests, testRuns, fuzzRun, cost, comparison, repairs, qualityGate, history, versions] = await Promise.all([
+  const [workflow, validation, evaluations, tests, testRuns, fuzzRun, cost, comparison, repairs, qualityGate, history, versions, attachments] = await Promise.all([
     api.workflow(id),
     api.validation(id),
     api.evaluations(id),
@@ -31,6 +32,7 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
     api.qualityGate(id).catch(() => null),
     api.history(id).catch(() => []),
     api.versions(id).catch(() => []),
+    api.attachments(id).catch(() => []),
   ]);
   const latestEvaluation = evaluations[0];
   const dimensions = Object.fromEntries((latestEvaluation?.dimension_scores ?? []).map((score) => [score.dimension, score.score]));
@@ -172,6 +174,10 @@ export default async function WorkflowResultsPage({ params }: { params: Promise<
               <div className="border border-line bg-panel p-4 text-sm text-slate-700">No structural findings detected.</div>
             )}
           </div>
+        </Panel>
+
+        <Panel title="Requirement Documents">
+          <AttachmentsPanel workflowId={workflow.id} initialAttachments={attachments} />
         </Panel>
 
         <Panel title="AI Evaluation">
