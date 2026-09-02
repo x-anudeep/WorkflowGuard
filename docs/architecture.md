@@ -37,7 +37,7 @@ apps/
   api/      FastAPI application, database models, migrations, REST endpoints
   web/      Next.js application, upload UI, dashboard, graph visualization
 packages/
-  workflow-core/  Canonical models, parsers, graph validation, requirement extraction, semantic evaluation, tests, simulator, costing, comparison, repair, CLI
+  workflow-core/  Canonical models, parsers, graph validation, requirement extraction, requirement documents, semantic evaluation, tests, simulator, costing, comparison, repair, CLI
 examples/   Supported and intentionally broken workflow fixtures
 docs/       Architecture and operating notes
 docker/     Service Dockerfiles
@@ -84,6 +84,8 @@ The evaluation engine uses:
 
 - deterministic requirement extraction as a baseline
 - optional AI-assisted requirement extraction through a provider-neutral interface
+- attached requirement documents (BRD/PDD/SDD) parsed by `workflow_core/documents` and merged into the same spec, tagged with their provenance
+- optional AI-assisted requirement *matching*, used for document requirements whose business vocabulary keyword matching cannot bridge
 - schema validation for every AI-produced `RequirementSpec`
 - canonical graph matching for required actions, ordering, conditions, approvals, integrations, and outputs
 - deterministic security, reliability, and maintainability analyzers
@@ -92,7 +94,7 @@ Every evaluation finding is explainable: expected behavior, observed behavior, r
 
 ## AI Provider Boundary
 
-The API owns provider adapters. The core evaluation and testing engines do not depend on an AI vendor. `WORKFLOWGUARD_AI_PROVIDER=none` runs the system in deterministic mode. `openai` and `groq` can be configured with `WORKFLOWGUARD_AI_API_KEY`, `WORKFLOWGUARD_AI_MODEL`, and `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`. Groq is used through its OpenAI-compatible chat-completions endpoint and covers requirement extraction, test generation, repair, and fuzz-case generation.
+The API owns provider adapters. The core evaluation and testing engines do not depend on an AI vendor. `WORKFLOWGUARD_AI_PROVIDER=none` runs the system in deterministic mode. `openai` and `groq` can be configured with `WORKFLOWGUARD_AI_API_KEY`, `WORKFLOWGUARD_AI_MODEL`, and `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`. Groq is used through its OpenAI-compatible chat-completions endpoint and covers requirement extraction, requirement matching, test generation, repair, and fuzz-case generation.
 
 Provider timeouts, malformed responses, credential failures, rate limits, and request errors are handled gracefully and fall back to deterministic requirement extraction, deterministic test generation, and deterministic repair patches. Raw model output is never trusted or stored without schema validation.
 
@@ -108,6 +110,15 @@ Part 3 introduces `workflow_core.testing`:
 - `WorkflowTestRunner`: combines simulation, assertions, status calculation, duration, failures, and coverage contribution
 
 External integrations are mocked by default. Failure injection models timeouts, rate limits, HTTP 500s, authorization errors, unavailable dependencies, and malformed LLM output without calling real services or executing uploaded code.
+
+## Requirement Documents
+
+`workflow_core/documents` turns an attached BRD, PDD, or SDD into atomic requirement clauses by
+walking the markdown structure rather than splitting on punctuation - headings become sections,
+`BR-n` / `Step n` / `x.y` subtrees are scored, context sections are not, decision tables become
+constraints, and integration tables name their own systems. Clauses are parsed once at upload
+and stored on `workflow_attachments`, so a parser change cannot silently move an existing
+workflow's score without a re-upload.
 
 ## Fuzz Testing
 

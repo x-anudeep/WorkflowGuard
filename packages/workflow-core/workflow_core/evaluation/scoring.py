@@ -20,6 +20,45 @@ PENALTIES = {
     ValidationSeverity.WARNING: 7,
     ValidationSeverity.INFO: 2,
 }
+#: The most any single rule may subtract from its dimension.
+#:
+#: Penalties used to be an uncapped linear sum, which made the score track workflow *size*
+#: rather than quality: the per-node rules fire once per node, so a 17-external-call workflow
+#: took 119 points from `WG-REL-001` alone against a budget of 100. Measured across the 30
+#: reference workflows, corr(node_count, reliability) was -0.93 and corr(node_count, security)
+#: -0.98, and all ten complex workflows scored exactly 0 on reliability.
+#:
+#: A rule now costs `budget x (findings / applicable population)`, so failing every applicable
+#: node still costs the full budget while failing one of twelve costs a twelfth of it.
+RULE_BUDGETS: dict[str, int] = {
+    "WG-ALIGN-001": 45,
+    "WG-ALIGN-002": 20,
+    "WG-ALIGN-003": 20,
+    "WG-ALIGN-004": 20,
+    "WG-ALIGN-005": 15,
+    "WG-ALIGN-006": 15,
+    "WG-REL-001": 20,
+    "WG-REL-002": 20,
+    "WG-REL-003": 15,
+    "WG-REL-004": 10,
+    "WG-REL-005": 25,
+    "WG-SEC-001": 60,
+    "WG-SEC-002": 60,
+    "WG-SEC-003": 35,
+    "WG-SEC-004": 25,
+    "WG-SEC-005": 20,
+    "WG-MAINT-001": 25,
+    "WG-MAINT-002": 15,
+    "WG-FUZZ-001": 30,
+    "WG-FUZZ-002": 30,
+    "WG-FUZZ-003": 20,
+    "WG-FUZZ-004": 20,
+    "WG-FUZZ-005": 10,
+}
+#: Rules with no explicit budget keep the raw severity sum, capped so that one unknown rule
+#: still cannot zero a dimension by itself.
+DEFAULT_RULE_BUDGET = 25
+
 #: How much of the reliability score comes from measured fuzz survival rather than
 #: from statically declared error handling. Only applied when a fuzz report exists.
 FUZZ_BLEND_WEIGHT = 0.40
@@ -58,10 +97,17 @@ def dimension_scores(
         EvaluationDimension.MAINTAINABILITY,
     ]:
         related = [finding for finding in evaluation_findings if finding.dimension == dimension]
-        penalty = sum(PENALTIES[ValidationSeverity(finding.severity)] for finding in related)
+        penalty, breakdown = _dimension_penalty(related)
         score = max(0, min(100, 100 - penalty))
-        explanation = f"Starts at 100 and subtracts transparent penalties for {dimension.value} findings."
-        calculation: dict[str, object] = {"penalty": penalty, "findings": _severity_counts(related)}
+        explanation = (
+            f"Starts at 100 and subtracts a budgeted penalty per {dimension.value} rule, scaled by "
+            "the share of applicable nodes that failed it."
+        )
+        calculation: dict[str, object] = {
+            "penalty": penalty,
+            "findings": _severity_counts(related),
+            "rule_breakdown": breakdown,
+        }
 
         if dimension == EvaluationDimension.RELIABILITY and _has_fuzz_evidence(fuzz_report):
             score, explanation, calculation = _blend_reliability(score, penalty, related, fuzz_report)
@@ -75,6 +121,40 @@ def dimension_scores(
             )
         )
     return scores
+
+
+def _dimension_penalty(related: list[EvaluationFinding]) -> tuple[int, dict[str, object]]:
+    """Sum each rule's budgeted contribution instead of every finding's raw penalty.
+
+    Per-node rules fire once per node, so the raw sum grew with the graph and saturated the
+    dimension at 0 for any workflow of real size. Scaling each rule by the fraction of
+    applicable nodes that failed makes the score independent of how big the workflow is.
+    """
+    grouped: dict[str, list[EvaluationFinding]] = {}
+    for finding in related:
+        grouped.setdefault(finding.rule_id, []).append(finding)
+
+    breakdown: dict[str, object] = {}
+    total = 0.0
+    for rule_id, findings in grouped.items():
+        budget = RULE_BUDGETS.get(rule_id, DEFAULT_RULE_BUDGET)
+        raw = sum(PENALTIES[ValidationSeverity(finding.severity)] for finding in findings)
+        population = max((finding.rule_population or 0) for finding in findings)
+        if population > 0:
+            contribution = min(budget * len(findings) / population, float(budget))
+        else:
+            # No denominator reported, so fall back to the raw sum - capped, so an
+            # unannotated rule still cannot zero the dimension on its own.
+            contribution = float(min(raw, budget))
+        breakdown[rule_id] = {
+            "findings": len(findings),
+            "population": population or None,
+            "raw_penalty": raw,
+            "budget": budget,
+            "applied": round(contribution, 1),
+        }
+        total += contribution
+    return round(total), breakdown
 
 
 def _has_fuzz_evidence(fuzz_report: FuzzReport | None) -> bool:

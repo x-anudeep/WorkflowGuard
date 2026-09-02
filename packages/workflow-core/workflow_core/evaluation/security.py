@@ -17,6 +17,39 @@ SECRET_VALUE = re.compile(r"(sk-[A-Za-z0-9]{16,}|xox[baprs]-|AKIA[0-9A-Z]{16}|--
 class SecurityAnalyzer:
     def analyze(self, workflow: Workflow) -> list[EvaluationFinding]:
         findings: list[EvaluationFinding] = []
+        # Denominators for the per-node rules, so scoring can weigh "8 of 8 external calls"
+        # against "1 of 8" instead of subtracting a flat penalty each time.
+        total = len(workflow.nodes)
+        external = sum(1 for node in workflow.nodes if node.type == NodeType.EXTERNAL_API)
+        llm = sum(1 for node in workflow.nodes if node.type == NodeType.LLM)
+        # Same reasoning as the reliability timeout/retry rules: if no external call in the
+        # whole workflow declares auth, the format has no field for it, and marking every node
+        # down measures the export format rather than the workflow.
+        declares_auth = any(
+            _has_auth(node.configuration) for node in workflow.nodes if node.type == NodeType.EXTERNAL_API
+        )
+        if external and not declares_auth:
+            findings.append(
+                EvaluationFinding(
+                    rule_id="WG-SEC-004",
+                    dimension=EvaluationDimension.SECURITY,
+                    severity=ValidationSeverity.INFO,
+                    title="No authentication declared anywhere in this workflow",
+                    message=(
+                        f"None of the {external} external call(s) declare authentication. The "
+                        f"'{workflow.source_format}' format may bind credentials outside the "
+                        "workflow definition, so this is reported once as advice."
+                    ),
+                    expected="External integrations should declare credentials or authentication.",
+                    found="No credential/auth field on any external call.",
+                    why_it_matters=(
+                        "Unauthenticated endpoints can fail unexpectedly or permit unintended "
+                        "access - but platform-level credential binding would not appear here."
+                    ),
+                    remediation="Confirm where credentials are bound for this platform.",
+                    confidence=Confidence.LOW,
+                )
+            )
         for node in workflow.nodes:
             flattened = _flatten(node.configuration)
             for key, value in flattened.items():
@@ -34,6 +67,7 @@ class SecurityAnalyzer:
                             node.id,
                             "Move the value into a managed credential/secret reference.",
                             Confidence.HIGH,
+                            total,
                         )
                     )
                 elif SECRET_VALUE.search(value_text):
@@ -49,6 +83,7 @@ class SecurityAnalyzer:
                             node.id,
                             "Replace with a secret reference and rotate the exposed value.",
                             Confidence.HIGH,
+                            total,
                         )
                     )
 
@@ -66,9 +101,10 @@ class SecurityAnalyzer:
                         node.id,
                         "Use HTTPS or document why this internal endpoint is safe.",
                         Confidence.HIGH,
+                        total,
                     )
                 )
-            if node.type == NodeType.EXTERNAL_API and not _has_auth(node.configuration):
+            if node.type == NodeType.EXTERNAL_API and declares_auth and not _has_auth(node.configuration):
                 findings.append(
                     _finding(
                         "WG-SEC-004",
@@ -81,6 +117,7 @@ class SecurityAnalyzer:
                         node.id,
                         "Attach a provider credential reference or explicit auth configuration.",
                         Confidence.MEDIUM,
+                        external,
                     )
                 )
             if node.type == NodeType.LLM and _mentions_sensitive_data(workflow):
@@ -96,6 +133,7 @@ class SecurityAnalyzer:
                         node.id,
                         "Add redaction, data minimization, or explicit provider privacy controls before this node.",
                         Confidence.LOW,
+                        llm,
                     )
                 )
         return findings
@@ -112,6 +150,7 @@ def _finding(
     node_id: str,
     remediation: str,
     confidence: Confidence,
+    rule_population: int | None = None,
 ) -> EvaluationFinding:
     return EvaluationFinding(
         rule_id=rule_id,
@@ -125,6 +164,7 @@ def _finding(
         node_id=node_id,
         remediation=remediation,
         confidence=confidence,
+        rule_population=rule_population,
     )
 
 

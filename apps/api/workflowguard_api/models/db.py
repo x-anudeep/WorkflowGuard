@@ -56,6 +56,9 @@ class WorkflowRecord(Base):
     repair_proposals: Mapped[list[RepairProposalRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
     audit_events: Mapped[list[AuditEventRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
     fuzz_runs: Mapped[list[FuzzRunRecord]] = relationship(back_populates="workflow", cascade="all, delete-orphan")
+    attachments: Mapped[list[WorkflowAttachmentRecord]] = relationship(
+        back_populates="workflow", cascade="all, delete-orphan"
+    )
 
 
 class WorkflowVersion(Base):
@@ -89,6 +92,33 @@ class WorkflowFile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     version: Mapped[WorkflowVersion] = relationship(back_populates="file")
+
+
+class WorkflowAttachmentRecord(Base):
+    """A requirement document (BRD/PDD/SDD) attached to a workflow.
+
+    Scoped to the workflow rather than a version: a BRD describes intent and outlives any
+    single revision of the graph. `version_id` records which version it arrived alongside.
+    """
+
+    __tablename__ = "workflow_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflow_versions.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="other")
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_content: Mapped[str] = mapped_column(Text, nullable=False)
+    extracted_json: Mapped[dict] = mapped_column(json_type(), default=dict, nullable=False)
+    clause_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    workflow: Mapped[WorkflowRecord] = relationship(back_populates="attachments")
+
+    __table_args__ = (Index("ix_workflow_attachments_workflow", "workflow_id"),)
 
 
 class WorkflowNode(Base):

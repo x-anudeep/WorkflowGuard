@@ -3,7 +3,7 @@ from __future__ import annotations
 from workflow_core.canonical.models import ValidationFinding, Workflow
 from workflow_core.evaluation.alignment import AlignmentAnalyzer
 from workflow_core.evaluation.maintainability import MaintainabilityAnalyzer
-from workflow_core.evaluation.models import EvaluationResult, RequirementSpec
+from workflow_core.evaluation.models import EvaluationResult, RequirementMatch, RequirementSpec
 from workflow_core.evaluation.reliability import ReliabilityAnalyzer
 from workflow_core.evaluation.requirements import DeterministicRequirementExtractor
 from workflow_core.evaluation.scoring import dimension_scores, overall_score
@@ -27,6 +27,7 @@ class SemanticEvaluationEngine:
         validation_findings: list[ValidationFinding],
         requirement_spec: RequirementSpec | None = None,
         fuzz_report: FuzzReport | None = None,
+        requirement_matches: list[RequirementMatch] | None = None,
     ) -> EvaluationResult:
         spec = requirement_spec
         if spec is None and workflow.source_prompt:
@@ -35,7 +36,9 @@ class SemanticEvaluationEngine:
         matches = []
         findings = []
         if spec is not None:
-            matches, alignment_findings = self.alignment.analyze(spec, workflow)
+            matches, alignment_findings = self.alignment.analyze(
+                spec, workflow, supplied_matches=requirement_matches
+            )
             findings.extend(alignment_findings)
 
         findings.extend(self.reliability.analyze(workflow))
@@ -51,6 +54,8 @@ class SemanticEvaluationEngine:
         ]
         if spec is None:
             limitations.append("No source prompt was available, so prompt alignment could not be evaluated.")
+        else:
+            limitations.extend(_alignment_limitations(spec, matches))
         if fuzz_report is None:
             limitations.append(
                 "No fuzz campaign has been run, so reliability reflects declared error handling only."
@@ -68,3 +73,28 @@ class SemanticEvaluationEngine:
             structural_score=structural_score,
             limitations=limitations,
         )
+
+
+def _alignment_limitations(spec: RequirementSpec, matches: list[RequirementMatch]) -> list[str]:
+    """Say plainly when a document requirement was judged by keyword matching alone."""
+    limitations: list[str] = []
+    document_items = {item.id for item in spec.requirements if item.source == "document"}
+    if not document_items:
+        return limitations
+    limitations.append(
+        f"{len(document_items)} requirement(s) came from attached documents rather than the prompt. "
+        "Document requirements are matched but not order-checked: a document lists requirements "
+        "in presentation order, which is not a required execution sequence."
+    )
+    weak = [
+        match
+        for match in matches
+        if match.requirement_id in document_items and match.match_method == "deterministic"
+    ]
+    if weak:
+        limitations.append(
+            "Requirement matching for attached documents ran without an AI provider; unmatched "
+            "document requirements are reported as warnings because keyword matching cannot "
+            "bridge document vocabulary."
+        )
+    return limitations

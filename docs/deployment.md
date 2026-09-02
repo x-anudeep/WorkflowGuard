@@ -49,6 +49,7 @@ Uploaded workflows and all analysis history are stored in PostgreSQL:
 - `cost_estimates`
 - `repair_proposals`
 - `audit_events`
+- `workflow_attachments`
 
 The frontend stores no durable workflow data. If the frontend is redeployed, data remains in PostgreSQL. If the database is deleted, the workflow history is deleted.
 

@@ -40,6 +40,24 @@ class WorkflowVersionRead(BaseModel):
     created_at: datetime
 
 
+class AttachmentRead(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    version_id: UUID | None = None
+    kind: str
+    filename: str
+    content_type: str | None = None
+    size_bytes: int
+    clause_count: int
+    created_at: datetime
+
+
+class AttachmentDetail(AttachmentRead):
+    raw_content: str
+    sections: list[dict[str, Any]] = Field(default_factory=list)
+    clauses: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class GraphRead(BaseModel):
     workflow_id: UUID
     version_id: UUID
@@ -187,6 +205,8 @@ class RequirementMatchRead(BaseModel):
     matched_node_ids: list[str] = Field(default_factory=list)
     evidence: str
     confidence: str
+    #: Defaulted so evaluation runs stored before matching became AI-assisted still read back.
+    match_method: str = "deterministic"
 
 
 class EvaluationRunRead(BaseModel):

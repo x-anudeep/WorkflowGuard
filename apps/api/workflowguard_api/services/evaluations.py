@@ -10,7 +10,10 @@ from workflow_core.evaluation import (
     RequirementSpec,
     SemanticEvaluationEngine,
 )
+from workflow_core.evaluation.models import RequirementMatch
 
+from workflowguard_api.ai.alignment import AlignmentProvider, alignment_provider_from_settings
+from workflowguard_api.ai.errors import MalformedAIResponse
 from workflowguard_api.ai.providers import (
     AIProviderError,
     AIProviderUnavailable,
@@ -25,6 +28,7 @@ from workflowguard_api.models.db import (
     RequirementSpecificationRecord,
     WorkflowRecord,
 )
+from workflowguard_api.services.attachments import AttachmentService
 from workflowguard_api.services.fuzzing import FuzzService
 from workflowguard_api.services.workflows import WorkflowService
 
@@ -34,12 +38,18 @@ class EvaluationNotFoundError(LookupError):
 
 
 class EvaluationService:
-    def __init__(self, db: Session, ai_provider: RequirementExtractionProvider | None = None) -> None:
+    def __init__(
+        self,
+        db: Session,
+        ai_provider: RequirementExtractionProvider | None = None,
+        alignment_provider: AlignmentProvider | None = None,
+    ) -> None:
         self.db = db
         self.workflow_service = WorkflowService(db)
         self.engine = SemanticEvaluationEngine()
         self.extractor = DeterministicRequirementExtractor()
         self.ai_provider = ai_provider
+        self.alignment_provider = alignment_provider
 
     def evaluate(self, workflow_id: uuid.UUID, *, use_ai: bool = True) -> EvaluationRun:
         record = self.workflow_service.get_workflow(workflow_id)
@@ -58,12 +68,18 @@ class EvaluationService:
         # Reliability blends measured fuzz survival with static analysis when a campaign
         # exists for this exact version; without one the score stays purely static.
         fuzz_report = FuzzService(self.db).report_for_evaluation(record.id, version.id)
+        # Document requirements are written in business language the keyword matcher cannot
+        # bridge, so they get an AI matcher when one is configured. Prompt-only workflows
+        # keep the deterministic path exactly as before.
+        matches, match_metadata = self._match_requirements(spec, workflow, use_ai=use_ai)
+        ai_metadata.update(match_metadata)
         result = self.engine.evaluate(
             workflow,
             structural_score=round(validation_run.structural_quality_score),
             validation_findings=validation_findings,
             requirement_spec=spec,
             fuzz_report=fuzz_report,
+            requirement_matches=matches,
         )
         result.ai_metadata.update(ai_metadata)
         result.ai_provider = ai_provider_name
@@ -177,6 +193,41 @@ class EvaluationService:
         avg = self.db.scalar(select(func.avg(EvaluationRun.overall_score))) or 0
         return {"total_evaluation_runs": int(total), "average_overall_score": round(float(avg), 2)}
 
+    def _match_requirements(
+        self,
+        spec: RequirementSpec | None,
+        workflow: Workflow,
+        *,
+        use_ai: bool,
+    ) -> tuple[list[RequirementMatch] | None, dict[str, str]]:
+        """Ask an AI provider to judge requirement/node correspondence.
+
+        Only worth doing when the spec carries document requirements: prompt requirements share
+        vocabulary with node names, so the deterministic matcher handles them well and calling a
+        model for them would change existing scores for no benefit.
+        """
+        if spec is None:
+            return None, {}
+        if not any(item.source == "document" for item in spec.requirements):
+            return None, {}
+        if not use_ai:
+            return None, {"match_status": "disabled_by_request"}
+
+        try:
+            provider = self.alignment_provider or alignment_provider_from_settings(get_settings())
+            matches = provider.match_requirements(spec, workflow)
+        except AIProviderUnavailable as exc:
+            return None, {"match_status": "unavailable_fallback", "match_reason": str(exc)}
+        except AIProviderError as exc:
+            return None, {"match_status": "error_fallback", "match_reason": str(exc)}
+        except MalformedAIResponse as exc:
+            return None, {"match_status": "error_fallback", "match_reason": str(exc)}
+        return matches, {
+            "match_status": "used",
+            "match_provider": provider.provider_name,
+            "match_model": provider.model_name or "",
+        }
+
     def _build_requirement_spec(
         self,
         record: WorkflowRecord,
@@ -185,14 +236,17 @@ class EvaluationService:
         *,
         use_ai: bool,
     ) -> tuple[RequirementSpec | None, RequirementSpecificationRecord | None, dict, str | None, str | None]:
-        if not workflow.source_prompt:
+        documents = AttachmentService(self.db).documents_for(record.id)
+        if not workflow.source_prompt and not documents:
+            return None, None, {"ai_status": "skipped_no_requirements"}, None, None
+        if not workflow.source_prompt and not any(document.clauses for document in documents):
             return None, None, {"ai_status": "skipped_no_prompt"}, None, None
 
         ai_metadata: dict[str, str] = {}
         provider_name: str | None = None
         model_name: str | None = None
         spec: RequirementSpec
-        if use_ai:
+        if use_ai and workflow.source_prompt:
             try:
                 provider = self.ai_provider or provider_from_settings(get_settings())
                 spec = provider.extract_requirements(workflow.source_prompt)
@@ -206,14 +260,24 @@ class EvaluationService:
             except AIProviderError as exc:
                 spec = self.extractor.extract(workflow.source_prompt)
                 ai_metadata = {"ai_status": "error_fallback", "reason": str(exc)}
-        else:
+        elif workflow.source_prompt:
             spec = self.extractor.extract(workflow.source_prompt)
             ai_metadata["ai_status"] = "disabled_by_request"
+        else:
+            spec = self.extractor.extract_composite(None, None)
+            ai_metadata["ai_status"] = "documents_only"
+
+        if documents:
+            # Merge the document clauses onto whatever the prompt produced. Clauses are already
+            # atomic, so they bypass the prompt clause splitter entirely.
+            spec = self.extractor.merge_documents(spec, documents, prompt=workflow.source_prompt)
 
         record_spec = RequirementSpecificationRecord(
             workflow_id=record.id,
             version_id=version_id,
-            source_prompt=workflow.source_prompt,
+            # The composite text, not the raw prompt: it is the audit record of everything the
+            # workflow was matched against, and a document-only workflow has no prompt at all.
+            source_prompt=spec.source_prompt,
             extraction_method=spec.extraction_method,
             confidence=str(spec.confidence),
             spec_json=spec.model_dump(mode="json"),
