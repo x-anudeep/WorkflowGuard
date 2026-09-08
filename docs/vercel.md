@@ -13,7 +13,7 @@ Two Vercel projects from this one repository:
 
 | | `workflowguard-api` | `workflowguard-web` |
 | --- | --- | --- |
-| Root Directory | *(repo root, leave blank)* | *(blank — linked from `apps/web`)* |
+| Root Directory | *(repo root, leave blank)* | **`apps/web`** |
 | Framework Preset | **FastAPI** | **Next.js** |
 | Build / Install Command | *(defaults)* | *(defaults)* |
 | Runtime | Python 3.12 (`.python-version`) | Node 22 |
@@ -79,11 +79,19 @@ In practice that means nothing tracked in git belongs there — a CI checkout ha
 all of it. Gitignored and generated paths are safe, which is exactly what the
 file lists.
 
-Linking the web project from inside `apps/web` leaves its `rootDirectory` null,
-so Vercel resolves everything relative to the working directory. The CI web jobs
-therefore run with `working-directory: apps/web`; from the repo root they would
-read the API's `vercel.json` and fail with *The pattern "index.py" defined in
-`functions` doesn't match any Serverless Functions*.
+**The web project's Root Directory must actually be set** — `vercel link` from
+inside `apps/web` does *not* set it, it leaves `rootDirectory: null`. Without it,
+CI builds from the repo root read the API's `vercel.json` and fail with *The
+pattern "index.py" defined in `functions` doesn't match any Serverless
+Functions*; and building from `apps/web` instead fails at deploy time with
+*File does not exist: "node_modules/client-only/index.js"*, because npm
+workspaces hoist dependencies to the repo root while the trace records paths
+relative to `apps/web`. Setting it makes Vercel handle the workspace properly, so
+CI runs every step from the repo root:
+
+```bash
+vercel project update workflowguard-web --root-directory apps/web --yes
+```
 
 **Set the API project's framework preset to FastAPI explicitly.** The repo root
 also contains a `package.json`, and although it declares no dependencies (so

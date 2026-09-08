@@ -116,16 +116,8 @@ jobs:
     environment: production
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v5
-      # Run from apps/web, not the repo root. The web project was linked from this
-      # directory so its rootDirectory is null, meaning vercel resolves everything
-      # relative to the working directory -- from the root it would read the API's
-      # vercel.json and fail with "The pattern \"index.py\" defined in `functions`
-      # doesn't match any Serverless Functions".
       - run: npm install --global vercel@latest
       - run: vercel pull --yes --environment=production
       - run: vercel build --prod
@@ -140,16 +132,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v5
-      # Run from apps/web, not the repo root. The web project was linked from this
-      # directory so its rootDirectory is null, meaning vercel resolves everything
-      # relative to the working directory -- from the root it would read the API's
-      # vercel.json and fail with "The pattern \"index.py\" defined in `functions`
-      # doesn't match any Serverless Functions".
       - run: npm install --global vercel@latest
       - run: vercel pull --yes --environment=preview
       - run: vercel build
