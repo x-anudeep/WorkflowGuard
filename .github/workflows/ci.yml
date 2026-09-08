@@ -3,6 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  # Lets deploy.yml reuse these exact jobs as its gate, so the tests that guard a
+  # deploy are the same ones that run on every push -- not a second, drifting copy.
+  workflow_call:
 
 jobs:
   backend:

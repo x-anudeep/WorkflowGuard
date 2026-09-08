@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["iad1"],
+  "functions": {
+    "index.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{apps/web/**,node_modules/**,**/node_modules/**,.venv/**,.next/**,examples/**,references/**,docs/**,docker/**,.github/**,apps/api/tests/**,packages/workflow-core/tests/**,**/__pycache__/**,**/*.pyc}"
+    }
+  }
+}

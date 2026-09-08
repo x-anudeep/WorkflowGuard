@@ -1,0 +1,93 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Never let two deploys of the same ref interleave: they would race on the migration
+# step. Queue them instead of cancelling, so a superseded run still finishes migrating.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+jobs:
+  # Gates the production pipeline. Skipped on pull requests because ci.yml already
+  # runs on those directly -- calling it here too would double every check on a PR.
+  test:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  migrate:
+    name: alembic upgrade head
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e packages/workflow-core -e apps/api
+      - name: Apply migrations
+        working-directory: apps/api
+        env:
+          # Must be the session-mode pooler (port 5432 on the pooler host), not the
+          # direct db.<ref> host: that one is IPv6-only and GitHub-hosted runners have
+          # no IPv6, so it fails with a connection timeout that looks like a firewall.
+          # Session mode, not transaction mode, because DDL needs a stable backend.
+          WORKFLOWGUARD_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_URL }}
+        run: alembic upgrade head
+
+  deploy-api:
+    name: Deploy API (production)
+    needs: migrate
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm install --global vercel@latest
+      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Smoke test
+        # /ready exercises the database connection, so this catches a bad
+        # DATABASE_URL or an unreachable pooler before anyone else finds it.
+        run: |
+          curl --fail --silent --show-error --max-time 30 https://workflowguard-api.vercel.app/api/health
+          curl --fail --silent --show-error --max-time 30 https://workflowguard-api.vercel.app/api/ready
+
+  deploy-web:
+    name: Deploy web (production)
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm install --global vercel@latest
+      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+  # A preview is not production, so it deploys in parallel with the PR's own ci.yml
+  # run rather than waiting on it -- the same way Vercel's own Git previews behave.
+  preview-web:
+    name: Deploy web (preview)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm install --global vercel@latest
+      - run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
