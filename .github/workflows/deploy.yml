@@ -12,9 +12,41 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # The Vercel CLI reads these from the environment, so no --token flag is needed.
+  # Passing it as a flag fails with "missing a value" when the secret is unset,
+  # which reads like a CLI bug rather than unconfigured secrets.
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
 jobs:
+  # Deploy secrets cannot be read in a job-level `if`, so this turns "are they set?"
+  # into an output the deploy jobs can gate on. Without it, a repo that has not been
+  # wired up yet fails every pull request on an unexplained CLI error.
+  preflight:
+    name: Check deploy secrets
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          ORG: ${{ secrets.VERCEL_ORG_ID }}
+          API: ${{ secrets.VERCEL_PROJECT_ID_API }}
+          WEB: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+        run: |
+          missing=""
+          [ -n "$TOKEN" ] || missing="$missing VERCEL_TOKEN"
+          [ -n "$ORG" ]   || missing="$missing VERCEL_ORG_ID"
+          [ -n "$API" ]   || missing="$missing VERCEL_PROJECT_ID_API"
+          [ -n "$WEB" ]   || missing="$missing VERCEL_PROJECT_ID_WEB"
+          if [ -z "$missing" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Vercel deploys skipped::Missing secrets:$missing. See docs/vercel.md; the rest of CI still gates this branch."
+          fi
+
   # Gates the production pipeline. Skipped on pull requests because ci.yml already
   # runs on those directly -- calling it here too would double every check on a PR.
   test:
@@ -23,8 +55,8 @@ jobs:
 
   migrate:
     name: alembic upgrade head
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [preflight, test]
+    if: needs.preflight.outputs.configured == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -33,6 +65,17 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e packages/workflow-core -e apps/api
+      - name: Require a migration URL
+        # An empty value is worse than a missing one: pydantic-settings would fall
+        # back to the localhost default and alembic would sit there failing to reach
+        # a database that was never meant to be involved.
+        env:
+          URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::error title=MIGRATION_DATABASE_URL is not set::Set it to Neon's direct (non-pooler) URL. See docs/vercel.md."
+            exit 1
+          fi
       - name: Apply migrations
         working-directory: apps/api
         env:
@@ -52,9 +95,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: npm install --global vercel@latest
-      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel pull --yes --environment=production
+      - run: vercel build --prod
+      - run: vercel deploy --prebuilt --prod
       - name: Smoke test
         # /ready exercises the database connection, so this catches a bad
         # DATABASE_URL or an unreachable pooler before anyone else finds it.
@@ -72,21 +115,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: npm install --global vercel@latest
-      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel pull --yes --environment=production
+      - run: vercel build --prod
+      - run: vercel deploy --prebuilt --prod
 
   # A preview is not production, so it deploys in parallel with the PR's own ci.yml
   # run rather than waiting on it -- the same way Vercel's own Git previews behave.
   preview-web:
     name: Deploy web (preview)
-    if: github.event_name == 'pull_request'
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
     steps:
       - uses: actions/checkout@v5
       - run: npm install --global vercel@latest
-      - run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel pull --yes --environment=preview
+      - run: vercel build
+      - run: vercel deploy --prebuilt

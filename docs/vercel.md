@@ -161,6 +161,11 @@ INTERNAL_API_BASE_URL=https://workflowguard-api.vercel.app/api
 The runtime database URL is deliberately **not** a GitHub secret — it is a Vercel
 project variable, so it is injected into the function and never passes through CI.
 
+Until these are set, the `preflight` job reports which are missing and the deploy
+jobs skip rather than fail — pull requests stay green on `ci.yml` alone. The
+Vercel CLI reads `VERCEL_TOKEN` and `VERCEL_ORG_ID` from the environment, so the
+workflow passes no `--token` flag.
+
 **Turn off Vercel's Git integration auto-deploy on both projects** (Settings →
 Git → Ignored Build Step, or disconnect Git). Otherwise Vercel deploys on push in
 parallel with the migrate job and the ordering guarantee below is lost.
