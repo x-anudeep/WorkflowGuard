@@ -133,11 +133,21 @@ Set on the **`workflowguard-api`** Vercel project:
 
 ```bash
 WORKFLOWGUARD_ENVIRONMENT=production
-WORKFLOWGUARD_DATABASE_URL=postgresql+psycopg://<user>:<pw>@ep-xxx-pooler.<region>.aws.neon.tech/<db>?sslmode=require
 WORKFLOWGUARD_CORS_ORIGINS=["https://workflowguard.vercel.app"]
 WORKFLOWGUARD_AI_PROVIDER=none
 WORKFLOWGUARD_MAX_UPLOAD_BYTES=4000000
 ```
+
+**The database URL is not in that list on purpose.** Connecting Neon through the
+Vercel Marketplace injects `DATABASE_URL` (pooled) automatically, and
+`core/config.py` accepts it as a fallback for `WORKFLOWGUARD_DATABASE_URL`, so
+there is nothing to copy and nothing to update when credentials rotate. Vercel
+marks those injected variables **Sensitive**, meaning `vercel env pull` returns
+placeholders rather than values — so a copied second variable could not be
+verified from the CLI anyway.
+
+Set `WORKFLOWGUARD_DATABASE_URL` explicitly only to point the API somewhere other
+than the attached add-on; it takes precedence when both are present.
 
 Set on the **`workflowguard-web`** Vercel project:
 
@@ -156,7 +166,7 @@ INTERNAL_API_BASE_URL=https://workflowguard-api.vercel.app/api
 | `VERCEL_ORG_ID` | from `.vercel/project.json` after a local `vercel link` |
 | `VERCEL_PROJECT_ID_API` | ditto, for `workflowguard-api` |
 | `VERCEL_PROJECT_ID_WEB` | ditto, for `workflowguard-web` |
-| `MIGRATION_DATABASE_URL` | Neon's **direct** (non-pooler) URL, `postgresql+psycopg://…?sslmode=require` |
+| `MIGRATION_DATABASE_URL` | Neon's **direct** (non-pooler) URL, `postgresql+psycopg://…?sslmode=require`. Still needed: CI runs outside Vercel, so the injected `DATABASE_URL` is not available to it. |
 
 The runtime database URL is deliberately **not** a GitHub secret — it is a Vercel
 project variable, so it is injected into the function and never passes through CI.

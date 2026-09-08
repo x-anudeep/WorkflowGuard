@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,8 +9,15 @@ class Settings(BaseSettings):
     app_name: str = "WorkflowGuard API"
     environment: str = "development"
     api_prefix: str = "/api"
+    # WORKFLOWGUARD_DATABASE_URL wins, but a bare DATABASE_URL is accepted as a
+    # fallback because that is what managed Postgres add-ons inject -- the Neon
+    # integration on Vercel sets it, and copying the value into a second, prefixed
+    # variable would only create something to drift when credentials rotate.
+    # AliasChoices is needed because env_prefix does not apply to explicit aliases,
+    # which is precisely what lets the unprefixed name be read here and nowhere else.
     database_url: str = Field(
-        default="postgresql+psycopg://workflowguard:workflowguard@localhost:5432/workflowguard"
+        default="postgresql+psycopg://workflowguard:workflowguard@localhost:5432/workflowguard",
+        validation_alias=AliasChoices("WORKFLOWGUARD_DATABASE_URL", "DATABASE_URL"),
     )
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     max_upload_bytes: int = 5 * 1024 * 1024
