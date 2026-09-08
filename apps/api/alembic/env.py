@@ -11,13 +11,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# set_main_option writes into a ConfigParser, which interpolates "%" on read -- and a
+# managed Postgres password may contain one literally or as a percent-encoding, either
+# of which would raise InterpolationSyntaxError here rather than at connect time.
+# sqlalchemy_database_url (not the raw value) so the URL always names the psycopg driver.
+config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=get_settings().database_url,
+        url=get_settings().sqlalchemy_database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

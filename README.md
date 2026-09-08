@@ -35,6 +35,31 @@ Then open:
 
 If ports are already in use, run for example `API_PORT=18000 WEB_PORT=3100 docker compose up --build` and use `http://localhost:18000/api` plus `http://localhost:3100`.
 
+## Public API
+
+The backend is a plain HTTP API and is usable directly, without the frontend.
+
+- Base URL: `https://workflowguard-api.vercel.app/api`
+- OpenAPI schema: `GET /api/openapi.json`
+- Interactive docs: `https://workflowguard-api.vercel.app/docs`
+
+```bash
+curl https://workflowguard-api.vercel.app/api/health
+curl https://workflowguard-api.vercel.app/api/workflows
+
+curl -X POST https://workflowguard-api.vercel.app/api/workflows/upload \
+  -F "file=@examples/bpmn/valid-workflow.bpmn" \
+  -F "source_type=ai_generated"
+```
+
+Two things to know before building against it:
+
+- **It is unauthenticated.** There are no API keys and no per-caller scoping, so
+  every workflow is visible and modifiable by anyone with the URL. Do not put
+  anything sensitive in it. Authentication is planned.
+- **Requests and responses are limited to 4.5 MB**, and analysis endpoints run
+  synchronously with a 300s ceiling. See [docs/vercel.md](docs/vercel.md).
+
 ## Hosting
 
 WorkflowGuard should be hosted as three resources: the Next.js frontend, the FastAPI backend, and PostgreSQL for durable workflow data.
@@ -73,7 +98,9 @@ npm install
 npm run web:dev
 ```
 
-`NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:8000/api`.
+`NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:8000/api`. On the Vercel
+deployment it is set to the relative path `/api`, so browser calls stay same-origin;
+see [docs/vercel.md](docs/vercel.md).
 
 ## Tests
 

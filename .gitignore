@@ -27,3 +27,6 @@ references/
 
 # Local virtualenv
 .venv/
+
+# Vercel CLI local state
+.vercel/

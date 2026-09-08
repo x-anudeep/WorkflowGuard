@@ -1,0 +1,37 @@
+# What NOT to upload to Vercel for the API project (root directory = repo root).
+#
+# Vercel uploads the working directory, not the git tree, so .gitignore does not
+# apply -- a local .env would otherwise be deployed inside the function, and
+# pydantic-settings reads env_file=".env" at runtime, so any variable not set in
+# the Vercel project would silently fall back to a developer's local value.
+#
+# Python functions bundle everything reachable and have no tree-shaking, so
+# trimming here is also what keeps the bundle small.
+
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# The web app is its own Vercel project, rooted at apps/web.
+apps/web/
+
+# Tests and fixtures are not needed at runtime.
+apps/api/tests/
+packages/workflow-core/tests/
+
+docs/
+examples/
+references/
+docker/
+.github/
+.claude/
+.next/

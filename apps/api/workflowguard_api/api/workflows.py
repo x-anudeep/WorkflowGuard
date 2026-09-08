@@ -14,6 +14,7 @@ from workflow_core.quality import QualityGateConfig
 from workflow_core.testing import WorkflowTest
 from workflow_core.validation import ValidationEngine
 
+from workflowguard_api.core.config import get_settings
 from workflowguard_api.db.session import get_db
 from workflowguard_api.models.db import AuditEventRecord, QualityGateRunRecord, ValidationRun, WorkflowRecord
 from workflowguard_api.schemas.workflows import (
@@ -155,6 +156,18 @@ async def upload_workflow(
     db: Session = Depends(get_db),
 ) -> WorkflowDetail:
     content = await file.read()
+    # max_upload_bytes was declared but never enforced, so the only ceiling was whatever
+    # the host imposed. Serverless hosts cap the request body well below this default and
+    # reject the request themselves with an opaque platform error, so check it here and
+    # say what the limit actually is.
+    max_bytes = get_settings().max_upload_bytes
+    if len(content) > max_bytes:
+        raise HTTPException(
+            # Literal 413 rather than status.HTTP_413_*: starlette renamed the
+            # constant, so either spelling warns or breaks on one side of that change.
+            status_code=413,
+            detail=f"Workflow file is {len(content)} bytes; the limit is {max_bytes} bytes.",
+        )
     try:
         record, _run = WorkflowService(db).upload(
             filename=file.filename or "workflow",

@@ -6,7 +6,16 @@ WorkflowGuard needs three hosted resources:
 - A FastAPI backend
 - A PostgreSQL database for workflows, versions, files, validation runs, evaluations, tests, cost estimates, repairs, and audit history
 
-## Recommended Demo Hosting
+## Hosting Options
+
+- **[Vercel + Neon](vercel.md)** -- the primary hosted deployment, deployed
+  automatically from `main` by `.github/workflows/deploy.yml`. Both apps run as
+  Vercel projects; Postgres is managed by Neon.
+- **Render** (below) -- the container-based alternative. It is the only path that
+  exercises `docker/api.Dockerfile`, and it has no function duration or request
+  body limits to work around.
+
+## Alternative: Render
 
 The included `render.yaml` defines all three pieces for Render:
 
@@ -29,7 +38,7 @@ Render Blueprints are defined in a root `render.yaml`. Docker services can point
 6. Open the frontend:
    - `https://workflowguard-web.onrender.com`
 
-The API container runs `alembic upgrade head` before starting Uvicorn, so database tables are created automatically on deploy.
+The API container runs `alembic upgrade head` before starting Uvicorn, so database tables are created automatically on deploy. This is Render-specific: the Vercel deployment has no container start, so it runs migrations as a CI job instead (see [vercel.md](vercel.md)).
 
 ## Where Workflow Data Is Stored
 
