@@ -22,6 +22,10 @@ export default async function WorkflowTestingPage({ params }: { params: Promise<
 
   const hasRun = testRuns.runs.length > 0;
   const notRun = tests.length - testRuns.runs.length;
+  // Percentage view of the same pass/fail counts as the "Passing" stat beside it -- how many
+  // of the workflow's generated tasks/tests actually succeeded when last run. Display-only:
+  // no new evaluation dimension, no change to overall_score or its weights.
+  const taskSuccessRate = hasRun && testRuns.total_tests > 0 ? (testRuns.passed / testRuns.total_tests) * 100 : null;
 
   return (
     <section className="px-5 py-7 lg:px-8">
@@ -34,6 +38,13 @@ export default async function WorkflowTestingPage({ params }: { params: Promise<
             label="Passing"
             value={hasRun ? `${testRuns.passed}/${testRuns.total_tests}` : "Not run"}
             tone={hasRun && testRuns.passed === testRuns.total_tests ? "good" : hasRun ? "bad" : "neutral"}
+          />
+          <Stat
+            label="Task success rate"
+            value={taskSuccessRate === null ? "Not measured" : `${taskSuccessRate.toFixed(0)}%`}
+            tone={
+              taskSuccessRate === null ? "neutral" : taskSuccessRate >= 85 ? "good" : taskSuccessRate >= 65 ? "warn" : "bad"
+            }
           />
           {/* Errored tests could not run at all, so they are worse than failing ones and are
               counted separately rather than folded into "failed". */}
@@ -72,9 +83,10 @@ function Stat({
 }: {
   label: string;
   value: string;
-  tone?: "neutral" | "good" | "bad";
+  tone?: "neutral" | "good" | "warn" | "bad";
 }) {
-  const toneClass = tone === "good" ? "text-success" : tone === "bad" ? "text-danger" : "text-ink";
+  const toneClass =
+    tone === "good" ? "text-success" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-danger" : "text-ink";
   return (
     <div className="border border-line bg-white p-4">
       <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
