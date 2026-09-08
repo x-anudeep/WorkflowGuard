@@ -1,0 +1,38 @@
+# Root manifest for the Vercel Python build only.
+#
+# Vercel builds with uv, not pip, which rules out a plain requirements.txt of
+# path entries: uv derives a package name from the path ("./apps/api" becomes
+# "api") and then refuses it because the metadata says "workflowguard-api".
+# Declaring a uv workspace names both packages explicitly instead.
+#
+# Local development is unchanged and does not use this file:
+#   pip install -e packages/workflow-core -e apps/api[dev]
+
+[project]
+name = "workflowguard-vercel"
+version = "0.1.0"
+description = "Deployment manifest that assembles the WorkflowGuard API for Vercel."
+requires-python = ">=3.12"
+dependencies = [
+  # fastapi is named explicitly so Vercel's framework detection selects the
+  # FastAPI preset; it would not see it through the path dependencies below.
+  "fastapi>=0.111.0",
+  # Both first-party packages are listed here, not just the API. [tool.uv.sources]
+  # only redirects THIS project's own dependencies, so naming workflowguard-api
+  # alone left its "workflow-core" requirement to be resolved normally -- and
+  # PEP 503 normalises the unrelated PyPI project "workflow.core" to that same
+  # name, so uv installed a stranger's package instead of packages/workflow-core.
+  # The deployed function then had no workflow_core module at all.
+  "workflow-core",
+  "workflowguard-api",
+]
+
+[tool.uv.workspace]
+members = ["apps/api", "packages/workflow-core"]
+
+[tool.uv.sources]
+workflowguard-api = { workspace = true }
+workflow-core = { workspace = true }
+
+[tool.vercel]
+entrypoint = "index:app"

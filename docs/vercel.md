@@ -23,6 +23,48 @@ entrypoint from the top-level `app` in `index.py` at the repo root, then routes
 every path to it — which is why the root `vercel.json` has no `rewrites`, only a
 `functions` entry keyed on `index.py`.
 
+### The Python build uses uv, not pip
+
+This shapes the whole dependency setup, and two things about it are worth
+knowing before changing anything.
+
+**A `requirements.txt` of path entries does not work.** uv derives a package
+name from the path — `./apps/api` becomes `api` — then rejects the install
+because the metadata says `workflowguard-api`. The root `pyproject.toml`
+declares a uv workspace instead, naming both first-party packages explicitly.
+
+**`workflow-core` collides with a real PyPI package.** PEP 503 normalises the
+unrelated PyPI project `workflow.core` to the same name, so a resolver that is
+not pointed at the local directory installs a stranger's package. That build
+succeeds and then fails at runtime with no `workflow_core` module at all, having
+also pulled in `docker`, `minio` and `argon2` as transitive dependencies.
+
+Two things prevent that, and both must stay:
+
+- The root `pyproject.toml` lists **both** `workflow-core` and
+  `workflowguard-api` in `[project].dependencies`. `[tool.uv.sources]` only
+  redirects this project's *own* dependencies, so listing the API alone left its
+  `workflow-core` requirement to resolve against PyPI.
+- **`uv.lock` is committed**, pinning `workflow-core` to
+  `source = { editable = "packages/workflow-core" }`.
+
+If you ever rename or re-scope these packages, re-run `uv lock` and check the
+result names the local path before deploying.
+
+### What does not work
+
+`excludeFiles` in `vercel.json` is **ignored** by the FastAPI preset — verified
+against CLI 59.11.7, where files named in it were still bundled. Use
+`.vercelignore`, which controls what is uploaded in the first place.
+
+`.vercelignore` matters most for a deploy run from a laptop: Vercel uploads the
+working directory rather than the git tree, so a local `.env` would otherwise
+ship inside the function — and `pydantic-settings` reads `env_file=".env"` at
+runtime, meaning any variable not set on the Vercel project would silently fall
+back to a developer's local value, including an AI provider and its key. CI
+deploys are safer by construction because the runner checks out from git and
+never has a `.env`.
+
 **Set the API project's framework preset to FastAPI explicitly.** The repo root
 also contains a `package.json`, and although it declares no dependencies (so
 Next.js detection should not fire), it is worth not relying on that. Confirm the
@@ -212,7 +254,9 @@ GitHub Actions logs is far slower than through a local `vercel deploy`.
    the schema applies.
 3. `vercel link` at the repo root → API project. Set the FastAPI preset and the
    API env vars. `vercel deploy --prod`. Check `/api/health` and `/api/ready`
-   (`/ready` is the one that proves the database connection works).
+   (`/ready` is the one that proves the database connection works), and confirm
+   the build log installed `workflow-core 0.1.0` from `packages/workflow-core`
+   rather than a version number from PyPI.
 4. `vercel link` in `apps/web` → web project. Set its two env vars. Deploy.
    Confirm in devtools that the browser calls `/api/*` on its own origin.
 5. Disable Git auto-deploy on both projects.
