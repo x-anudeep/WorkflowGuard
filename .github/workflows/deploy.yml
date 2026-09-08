@@ -36,11 +36,10 @@ jobs:
       - name: Apply migrations
         working-directory: apps/api
         env:
-          # Must be the session-mode pooler (port 5432 on the pooler host), not the
-          # direct db.<ref> host: that one is IPv6-only and GitHub-hosted runners have
-          # no IPv6, so it fails with a connection timeout that looks like a firewall.
-          # Session mode, not transaction mode, because DDL needs a stable backend.
-          WORKFLOWGUARD_DATABASE_URL: ${{ secrets.SUPABASE_MIGRATION_URL }}
+          # Neon's direct (non-pooler) URL, not the -pooler one the API runs against:
+          # DDL and alembic's locking need session-level features that a
+          # transaction-mode pooler does not provide.
+          WORKFLOWGUARD_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
         run: alembic upgrade head
 
   deploy-api:

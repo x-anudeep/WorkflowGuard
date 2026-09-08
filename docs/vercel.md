@@ -1,7 +1,7 @@
-# Deploying to Vercel + Supabase
+# Deploying to Vercel + Neon
 
 The primary hosted deployment: the Next.js frontend and the FastAPI backend both
-run on Vercel, with Postgres on Supabase. Deploys are driven by
+run on Vercel, with Postgres on Neon. Deploys are driven by
 `.github/workflows/deploy.yml`, not by Vercel's own Git integration.
 
 For the container-based alternative see the Render section of
@@ -48,39 +48,42 @@ that variable, so no application code changes for this.
 `CORS_ORIGINS` on the API therefore matters only for **third parties** calling
 the API directly from a browser.
 
-## Supabase
+## Neon
 
-Create the project in the same region the API deploys to (`iad1` by default, set
-in `vercel.json`) — every request makes at least one database round trip.
+Provision it from the Vercel dashboard (Storage → Marketplace → Neon), in the same
+region the API deploys to (`iad1` by default, set in `vercel.json`) — every
+request makes at least one database round trip. The free plan needs no card.
 
-Two different connection strings, for two different consumers:
+Neon gives two connection strings that differ only by a `-pooler` suffix on the
+hostname:
 
-| Consumer | Which string | Port |
+| Consumer | Which string | Host |
 | --- | --- | --- |
-| API runtime (Vercel env) | **Transaction** pooler | `6543` |
-| Migrations (GitHub Actions) | **Session** pooler | `5432` |
+| API runtime (Vercel env) | **Pooled** | `ep-xxx-pooler.<region>.aws.neon.tech` |
+| Migrations (GitHub Actions) | **Direct** | `ep-xxx.<region>.aws.neon.tech` |
 
-Both use the `aws-N-<region>.pooler.supabase.com` host and the
-`postgres.<project-ref>` username.
+Serverless wants the pooled endpoint: many short-lived connections, each held
+only for a request. Migrations want the direct one, because DDL and Alembic's
+locking need session-level features that a transaction-mode pooler does not
+provide. Both are reachable over IPv4 from GitHub-hosted runners.
 
-Two traps worth stating plainly:
+Rewrite both to the `postgresql+psycopg://` scheme and keep Neon's
+`?sslmode=require`.
 
-- **Do not use the direct `db.<ref>.supabase.co:5432` connection for
-  migrations.** It is IPv6-only unless you buy the IPv4 add-on, and
-  GitHub-hosted runners have no IPv6. The failure looks like a connection
-  timeout, which reads as a firewall problem rather than an addressing one.
-- **Migrations need session mode, not transaction mode.** Transaction mode hands
-  each transaction a different backend, which DDL and Alembic's locking do not
-  tolerate.
+`db/session.py` sets `prepare_threshold=None`, disabling psycopg's server-side
+prepared statements. This is a conservative default that is safe on any
+transaction-mode pooler, where a statement prepared on one backend is missing
+from the next. Neon's PgBouncer does support *protocol-level* prepared
+statements (1.22.0 and later), which is the kind psycopg3 uses — so this can be
+raised back to psycopg's default of 5 to recover that optimization, if you want
+to measure the difference.
 
-Rewrite both to the `postgresql+psycopg://` scheme, and strip any
-`?pgbouncer=true` that Supabase's UI appends — `Settings.sqlalchemy_database_url`
-preserves the query string and libpq rejects the unknown keyword.
+### Scale to zero
 
-`db/session.py` disables psycopg's server-side prepared statements
-(`prepare_threshold=None`) because the transaction pooler cannot support them;
-leaving them on produces intermittent `DuplicatePreparedStatement` errors rather
-than a clean failure.
+A free Neon database suspends after 5 minutes of inactivity and wakes on the
+next query, which pays a cold start on that first request rather than failing.
+Nothing needs configuring for this; it is worth knowing when the first request
+after a quiet period feels slow.
 
 ## Environment variables
 
@@ -88,7 +91,7 @@ Set on the **`workflowguard-api`** Vercel project:
 
 ```bash
 WORKFLOWGUARD_ENVIRONMENT=production
-WORKFLOWGUARD_DATABASE_URL=postgresql+psycopg://postgres.<ref>:<pw>@aws-N-<region>.pooler.supabase.com:6543/postgres
+WORKFLOWGUARD_DATABASE_URL=postgresql+psycopg://<user>:<pw>@ep-xxx-pooler.<region>.aws.neon.tech/<db>?sslmode=require
 WORKFLOWGUARD_CORS_ORIGINS=["https://workflowguard.vercel.app"]
 WORKFLOWGUARD_AI_PROVIDER=none
 WORKFLOWGUARD_MAX_UPLOAD_BYTES=4000000
@@ -111,7 +114,7 @@ INTERNAL_API_BASE_URL=https://workflowguard-api.vercel.app/api
 | `VERCEL_ORG_ID` | from `.vercel/project.json` after a local `vercel link` |
 | `VERCEL_PROJECT_ID_API` | ditto, for `workflowguard-api` |
 | `VERCEL_PROJECT_ID_WEB` | ditto, for `workflowguard-web` |
-| `SUPABASE_MIGRATION_URL` | the **session** pooler URL, `postgresql+psycopg://…:5432/postgres` |
+| `MIGRATION_DATABASE_URL` | Neon's **direct** (non-pooler) URL, `postgresql+psycopg://…?sslmode=require` |
 
 The runtime database URL is deliberately **not** a GitHub secret — it is a Vercel
 project variable, so it is injected into the function and never passes through CI.
@@ -129,8 +132,9 @@ test        (reuses .github/workflows/ci.yml)
             └─ deploy-web
 ```
 
-Pull requests run `test` and a **web preview** only — no migration, no API
-deploy. Because the preview's `/api/*` rewrite points at production, a preview is
+Pull requests get a **web preview** only — no migration, no API deploy. They are
+not gated on `test` here because `ci.yml` already runs on the pull request
+itself; gating twice would double every check. Because the preview's `/api/*` rewrite points at production, a preview is
 a fully working app against production data. There is no preview database.
 
 Migrations run before the deploy, so the schema is briefly **ahead** of the
@@ -194,17 +198,18 @@ Authentication and project-level authorization are tracked as follow-up work.
 Vercel keeps every deployment. Promote a previous one from the project's
 Deployments tab (⋯ → Promote to Production) — this reverts code only. If the bad
 release included a migration, roll that back separately with
-`alembic downgrade <revision>` against the session pooler, and only if the
-migration was reversible.
+`alembic downgrade <revision>` against the direct URL, and only if the migration
+was reversible.
 
 ## First-time setup order
 
 Do steps 3 and 4 by hand before wiring up CI — debugging a Python bundle through
 GitHub Actions logs is far slower than through a local `vercel deploy`.
 
-1. Create the Supabase project; collect both connection strings.
-2. Run `alembic upgrade head` from your machine against the session pooler to
-   prove the schema applies.
+1. Provision Neon from the Vercel dashboard; collect both connection strings
+   (they differ only by the `-pooler` suffix).
+2. Run `alembic upgrade head` from your machine against the direct URL to prove
+   the schema applies.
 3. `vercel link` at the repo root → API project. Set the FastAPI preset and the
    API env vars. `vercel deploy --prod`. Check `/api/health` and `/api/ready`
    (`/ready` is the one that proves the database connection works).

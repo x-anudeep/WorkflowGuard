@@ -8,9 +8,9 @@ WorkflowGuard needs three hosted resources:
 
 ## Hosting Options
 
-- **[Vercel + Supabase](vercel.md)** -- the primary hosted deployment, deployed
+- **[Vercel + Neon](vercel.md)** -- the primary hosted deployment, deployed
   automatically from `main` by `.github/workflows/deploy.yml`. Both apps run as
-  Vercel projects; Postgres is managed by Supabase.
+  Vercel projects; Postgres is managed by Neon.
 - **Render** (below) -- the container-based alternative. It is the only path that
   exercises `docker/api.Dockerfile`, and it has no function duration or request
   body limits to work around.

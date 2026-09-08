@@ -17,11 +17,12 @@ def _engine_kwargs(database_url: str) -> dict[str, object]:
     # instance keeps a deliberately tiny pool and recycles it before the pooler would
     # drop it underneath us. pool_pre_ping still covers connections killed in between.
     #
-    # prepare_threshold=None disables psycopg's server-side prepared statements, which
-    # a transaction-mode pooler cannot support: it hands each transaction a different
-    # backend, so a statement prepared on one is missing on the next. Leaving them on
-    # surfaces as intermittent DuplicatePreparedStatement errors rather than a clean
-    # failure. Set it back to psycopg's default of 5 if this ever moves off a pooler.
+    # prepare_threshold=None disables psycopg's server-side prepared statements. A
+    # transaction-mode pooler hands each transaction a different backend, so a
+    # statement prepared on one can be missing from the next, which surfaces as an
+    # intermittent DuplicatePreparedStatement rather than a clean failure. This is the
+    # conservative setting for any such pooler; a pooler that supports protocol-level
+    # prepared statements can take psycopg's default of 5 back.
     return {
         "pool_pre_ping": True,
         "pool_size": 2,
