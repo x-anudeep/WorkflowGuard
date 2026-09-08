@@ -13,7 +13,7 @@ Two Vercel projects from this one repository:
 
 | | `workflowguard-api` | `workflowguard-web` |
 | --- | --- | --- |
-| Root Directory | *(repo root, leave blank)* | `apps/web` |
+| Root Directory | *(repo root, leave blank)* | *(blank — linked from `apps/web`)* |
 | Framework Preset | **FastAPI** | **Next.js** |
 | Build / Install Command | *(defaults)* | *(defaults)* |
 | Runtime | Python 3.12 (`.python-version`) | Node 22 |
@@ -78,6 +78,12 @@ Error: ENOENT: no such file or directory, lstat '/vercel/path0/.github/workflows
 In practice that means nothing tracked in git belongs there — a CI checkout has
 all of it. Gitignored and generated paths are safe, which is exactly what the
 file lists.
+
+Linking the web project from inside `apps/web` leaves its `rootDirectory` null,
+so Vercel resolves everything relative to the working directory. The CI web jobs
+therefore run with `working-directory: apps/web`; from the repo root they would
+read the API's `vercel.json` and fail with *The pattern "index.py" defined in
+`functions` doesn't match any Serverless Functions*.
 
 **Set the API project's framework preset to FastAPI explicitly.** The repo root
 also contains a `package.json`, and although it declares no dependencies (so
