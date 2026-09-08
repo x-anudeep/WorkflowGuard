@@ -14,6 +14,7 @@ from workflow_core.testing.models import TestGeneratedBy
 from workflowguard_api.ai.errors import AIProviderError, AIProviderUnavailable
 from workflowguard_api.ai.fuzzing import FuzzGenerationProvider, fuzz_provider_from_settings
 from workflowguard_api.core.config import get_settings
+from workflowguard_api.db.jsonb import scrub_null_bytes
 from workflowguard_api.models.db import (
     FuzzCaseRecord,
     FuzzRunRecord,
@@ -211,10 +212,12 @@ class FuzzService:
             generated_by=str(report.generated_by),
             ai_provider=report.ai_provider,
             ai_model=report.ai_model,
-            ai_metadata=dict(report.ai_metadata),
-            findings=[finding.model_dump(mode="json") for finding in report.findings],
-            limitations=list(report.limitations),
-            suggestions=list(report.suggestions),
+            ai_metadata=scrub_null_bytes(dict(report.ai_metadata)),
+            # Findings quote the input that produced them, so a null-byte mutation
+            # reaches these columns too.
+            findings=scrub_null_bytes([finding.model_dump(mode="json") for finding in report.findings]),
+            limitations=scrub_null_bytes(list(report.limitations)),
+            suggestions=scrub_null_bytes(list(report.suggestions)),
         )
         self.db.add(run)
         self.db.flush()
@@ -226,20 +229,24 @@ class FuzzService:
                     fuzz_run_id=run.id,
                     workflow_id=workflow_id,
                     case_id=result.case.id,
-                    name=result.case.name,
-                    description=result.case.description,
+                    name=scrub_null_bytes(result.case.name),
+                    description=scrub_null_bytes(result.case.description),
                     strategy=str(result.case.strategy),
                     verdict=verdict.value,
-                    observed=result.observed,
+                    observed=scrub_null_bytes(result.observed),
                     generated_by=str(result.case.generated_by),
                     seed=result.case.seed,
-                    input_data=dict(result.case.input_data),
-                    failure_injections=[
-                        injection.model_dump(mode="json") for injection in result.case.failure_injections
-                    ],
+                    # A null byte is one of the input mutations the fuzzer feeds in, and
+                    # it reaches every one of these columns -- the input itself, the
+                    # trace of the run it produced, and the evidence quoting it. Postgres
+                    # JSONB cannot store U+0000, so it is replaced on the way in.
+                    input_data=scrub_null_bytes(dict(result.case.input_data)),
+                    failure_injections=scrub_null_bytes(
+                        [injection.model_dump(mode="json") for injection in result.case.failure_injections]
+                    ),
                     targeted_node_ids=list(result.case.targeted_node_ids),
-                    evidence=list(result.evidence),
-                    execution_trace=(
+                    evidence=scrub_null_bytes(list(result.evidence)),
+                    execution_trace=scrub_null_bytes(
                         result.simulation.model_dump(mode="json") if verdict in _TRACE_VERDICTS else {}
                     ),
                 )
