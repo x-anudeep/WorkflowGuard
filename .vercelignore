@@ -1,37 +1,42 @@
 # What NOT to upload to Vercel for the API project (root directory = repo root).
 #
-# Vercel uploads the working directory, not the git tree, so .gitignore does not
-# apply -- a local .env would otherwise be deployed inside the function, and
-# pydantic-settings reads env_file=".env" at runtime, so any variable not set in
-# the Vercel project would silently fall back to a developer's local value.
+# Only list paths that are ABSENT from the machine that runs `vercel build`.
 #
-# Python functions bundle everything reachable and have no tree-shaking, so
-# trimming here is also what keeps the bundle small.
+# CI deploys with `vercel build` + `vercel deploy --prebuilt`. The build bundles every
+# file it can reach into .vercel/output's file map -- Python functions have no
+# tree-shaking -- and the upload then applies this file. Excluding something that the
+# build already recorded leaves the deployment referencing a file that was never sent:
+#
+#   Error: ENOENT: no such file or directory, lstat '/vercel/path0/.github/workflows/ci.yml'
+#
+# So nothing tracked in git belongs here: a CI checkout has all of it. Everything below
+# is either gitignored or generated, which is why excluding it is safe.
+#
+# The point of this file is the first entry. Vercel uploads the working directory rather
+# than the git tree, so .gitignore does not protect a local .env -- and pydantic-settings
+# reads env_file=".env" at runtime, meaning any variable not set on the Vercel project
+# would silently fall back to a developer's local value, including an AI provider and its
+# key. CI never has one; a deploy run from a laptop would.
 
+# Listed one by one rather than as .env.* with negations for the examples: those two
+# ARE tracked, so if the negation did not apply they would be excluded, bundled, and
+# then missing -- the same ENOENT described above.
 .env
-.env.*
-!.env.example
-!.env.production.example
+.env.local
+.env.development.local
+.env.preview.local
+.env.production.local
 
 .venv/
 node_modules/
+.next/
+
 __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 
-# The web app is its own Vercel project, rooted at apps/web.
-apps/web/
-
-# Tests and fixtures are not needed at runtime.
-apps/api/tests/
-packages/workflow-core/tests/
-
-docs/
-examples/
+# Gitignored working data, not part of the application.
 references/
-docker/
-.github/
 .claude/
-.next/

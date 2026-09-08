@@ -65,6 +65,20 @@ back to a developer's local value, including an AI provider and its key. CI
 deploys are safer by construction because the runner checks out from git and
 never has a `.env`.
 
+**Only list paths in `.vercelignore` that are absent from the machine running
+`vercel build`.** CI builds locally and ships with `--prebuilt`, so the build
+records every reachable file in the output's file map and the upload then applies
+`.vercelignore`. Excluding something the build already recorded leaves the
+deployment pointing at a file that was never sent:
+
+```
+Error: ENOENT: no such file or directory, lstat '/vercel/path0/.github/workflows/ci.yml'
+```
+
+In practice that means nothing tracked in git belongs there — a CI checkout has
+all of it. Gitignored and generated paths are safe, which is exactly what the
+file lists.
+
 **Set the API project's framework preset to FastAPI explicitly.** The repo root
 also contains a `package.json`, and although it declares no dependencies (so
 Next.js detection should not fire), it is worth not relying on that. Confirm the
