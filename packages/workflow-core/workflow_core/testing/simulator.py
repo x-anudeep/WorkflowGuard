@@ -202,8 +202,19 @@ class WorkflowSimulator:
         return []
 
 
+#: `a || b` and `a && b`. Splitting these before comparing is not optional: without it the
+#: `==` split below reads `"starter" || plan == "professional"` as the right-hand literal, so
+#: every OR branch in a real workflow evaluates false and the run dead-ends at that gateway.
+_OR = re.compile(r"\|\||\bor\b", re.IGNORECASE)
+_AND = re.compile(r"&&|\band\b", re.IGNORECASE)
+
+
 def evaluate_condition(condition: str, state: dict[str, Any]) -> bool:
     text = condition.strip()
+    if _OR.search(text):
+        return any(evaluate_condition(part, state) for part in _OR.split(text) if part.strip())
+    if _AND.search(text):
+        return all(evaluate_condition(part, state) for part in _AND.split(text) if part.strip())
     lower = text.lower()
     if lower in {"true", "yes", "approved"}:
         return bool(state.get("approved", True))

@@ -70,7 +70,16 @@ class WorkflowTestingService:
             except AIProviderUnavailable as exc:
                 warnings.append(f"AI generation skipped: {exc}")
             except AIProviderError as exc:
+                # Covers HTTP status errors, timeouts, and malformed/non-JSON bodies. No AI
+                # test is added: a provider that answered with an error code has told us
+                # nothing about this workflow, and a partial suite is worse than none because
+                # generated tests feed coverage and the quality gate.
                 warnings.append(f"AI generation failed; deterministic tests were kept: {exc}")
+            except Exception as exc:  # noqa: BLE001 - provider boundary, never lose the suite
+                warnings.append(
+                    f"AI generation failed unexpectedly; deterministic tests were kept: "
+                    f"{type(exc).__name__}: {exc}"
+                )
 
         if replace_existing:
             for existing in self.list_tests(workflow_id):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -17,6 +17,8 @@ from workflow_core.validation import ValidationEngine
 from workflowguard_api.db.session import get_db
 from workflowguard_api.models.db import AuditEventRecord, QualityGateRunRecord, ValidationRun, WorkflowRecord
 from workflowguard_api.schemas.workflows import (
+    AttachmentDetail,
+    AttachmentRead,
     AuditEventRead,
     CostEstimateRead,
     CostScenarioCreate,
@@ -52,6 +54,11 @@ from workflowguard_api.schemas.workflows import (
     WorkflowTestRead,
     WorkflowTestRunRead,
     WorkflowVersionRead,
+)
+from workflowguard_api.services.attachments import (
+    AttachmentNotFoundError,
+    AttachmentService,
+    UnsupportedAttachmentError,
 )
 from workflowguard_api.services.audit import AuditService
 from workflowguard_api.services.costs import CostService
@@ -217,6 +224,62 @@ def versions(workflow_id: UUID, db: Session = Depends(get_db)) -> list[WorkflowV
         WorkflowVersionRead(id=version.id, workflow_id=version.workflow_id, version_number=version.version_number, created_at=version.created_at)
         for version in sorted(record.versions, key=lambda item: item.version_number)
     ]
+
+
+@router.post(
+    "/workflows/{workflow_id}/attachments",
+    response_model=AttachmentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_attachment(
+    workflow_id: UUID,
+    file: UploadFile = File(...),
+    kind: str | None = Form(None),
+    db: Session = Depends(get_db),
+) -> AttachmentRead:
+    content = await file.read()
+    try:
+        record = AttachmentService(db).add(
+            workflow_id,
+            filename=file.filename or "requirements.md",
+            content=content,
+            content_type=file.content_type,
+            kind=kind,
+        )
+    except AttachmentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+    except UnsupportedAttachmentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _attachment(record)
+
+
+@router.get("/workflows/{workflow_id}/attachments", response_model=list[AttachmentRead])
+def list_attachments(workflow_id: UUID, db: Session = Depends(get_db)) -> list[AttachmentRead]:
+    return [_attachment(record) for record in AttachmentService(db).list_for_workflow(workflow_id)]
+
+
+@router.get("/attachments/{attachment_id}", response_model=AttachmentDetail)
+def get_attachment(attachment_id: UUID, db: Session = Depends(get_db)) -> AttachmentDetail:
+    try:
+        record = AttachmentService(db).get(attachment_id)
+    except AttachmentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found") from exc
+    extracted = record.extracted_json or {}
+    return AttachmentDetail(
+        **_attachment(record).model_dump(),
+        raw_content=record.raw_content,
+        sections=extracted.get("sections", []),
+        clauses=extracted.get("clauses", []),
+    )
+
+
+@router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_attachment(attachment_id: UUID, db: Session = Depends(get_db)) -> Response:
+    try:
+        AttachmentService(db).delete(attachment_id)
+    except AttachmentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found") from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/workflows/{workflow_id}/validate", response_model=ValidationRunRead)
@@ -573,7 +636,9 @@ def check_quality_gate(
     db: Session = Depends(get_db),
 ) -> QualityGateRunRead:
     try:
-        config = QualityGateConfig.model_validate(payload.model_dump()) if payload else None
+        # Only the fields actually supplied override the configured defaults.
+        overrides = payload.model_dump(exclude_none=True) if payload else {}
+        config = QualityGateConfig(**overrides) if overrides else None
         run = QualityGateService(db).check(workflow_id, config)
         AuditService(db).record("quality_gate_checked", f"Quality gate {run.status}.", workflow_id=workflow_id, version_id=run.version_id)
         return _quality_gate_run(run)
@@ -613,6 +678,20 @@ def workflow_report(
         return service.build(workflow_id)
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found") from exc
+
+
+def _attachment(record) -> AttachmentRead:
+    return AttachmentRead(
+        id=record.id,
+        workflow_id=record.workflow_id,
+        version_id=record.version_id,
+        kind=record.kind,
+        filename=record.filename,
+        content_type=record.content_type,
+        size_bytes=record.size_bytes,
+        clause_count=record.clause_count,
+        created_at=record.created_at,
+    )
 
 
 def _summary(record: WorkflowRecord) -> WorkflowSummary:

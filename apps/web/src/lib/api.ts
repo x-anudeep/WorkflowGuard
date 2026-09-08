@@ -1,4 +1,6 @@
 import type {
+  Attachment,
+  AttachmentDetail,
   DashboardMetrics,
   CostEstimate,
   EvaluationRun,
@@ -40,6 +42,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const message = await response.text();
     throw new Error(message || `Request failed with ${response.status}`);
   }
+  // 204 has no body, so parsing it would throw on every delete.
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -128,5 +132,14 @@ export const api = {
     request<WorkflowDetail>("/workflows/upload", {
       method: "POST",
       body: formData
-    })
+    }),
+  attachments: (id: string) => request<Attachment[]>(`/workflows/${id}/attachments`),
+  addAttachment: (id: string, formData: FormData) =>
+    request<Attachment>(`/workflows/${id}/attachments`, {
+      method: "POST",
+      body: formData
+    }),
+  attachment: (attachmentId: string) => request<AttachmentDetail>(`/attachments/${attachmentId}`),
+  deleteAttachment: (attachmentId: string) =>
+    request<void>(`/attachments/${attachmentId}`, { method: "DELETE" })
 };

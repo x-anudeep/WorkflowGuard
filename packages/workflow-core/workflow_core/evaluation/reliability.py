@@ -16,10 +16,31 @@ class ReliabilityAnalyzer:
     def analyze(self, workflow: Workflow) -> list[EvaluationFinding]:
         graph = build_directed_graph(workflow)
         findings: list[EvaluationFinding] = []
+        # How many nodes each rule could possibly fire on. Scoring needs the denominator to
+        # tell "every external call lacks a timeout" apart from "one of twelve does".
+        external = sum(1 for node in workflow.nodes if node.type == NodeType.EXTERNAL_API)
+        llm = sum(1 for node in workflow.nodes if node.type == NodeType.LLM)
+        dependent = sum(
+            1
+            for node in workflow.nodes
+            if node.type in {NodeType.EXTERNAL_API, NodeType.DATABASE, NodeType.LLM}
+        )
+        # If *no* external call in the whole workflow declares a timeout or retry, the source
+        # format almost certainly has no field for it - the qubi Http node carries only
+        # {body, method, saveOutputAs, url}, and 28 of the 30 reference workflows contain no
+        # such key anywhere. Marking every node down for that measures the export format, not
+        # the workflow. Report it once, as advice. Where some nodes do declare it, the ones
+        # that do not are genuine omissions and are still flagged per node.
+        declares_timeout = _any_declares(workflow, ("timeout",))
+        declares_retry = _any_declares(workflow, ("retry", "retries"))
+        if external and not declares_timeout:
+            findings.append(_unsupported_field(workflow, "timeout", "WG-REL-001", external))
+        if external and not declares_retry:
+            findings.append(_unsupported_field(workflow, "retry policy", "WG-REL-002", external))
         for node in workflow.nodes:
             config = {key.lower(): value for key, value in node.configuration.items()}
             if node.type == NodeType.EXTERNAL_API:
-                if not any("timeout" in key for key in config):
+                if declares_timeout and not any("timeout" in key for key in config):
                     findings.append(
                         _finding(
                             "WG-REL-001",
@@ -31,9 +52,10 @@ class ReliabilityAnalyzer:
                             node.id,
                             "Add a timeout appropriate for the integration.",
                             Confidence.MEDIUM,
+                            external,
                         )
                     )
-                if not any("retry" in key or "retries" in key for key in config):
+                if declares_retry and not any("retry" in key or "retries" in key for key in config):
                     findings.append(
                         _finding(
                             "WG-REL-002",
@@ -45,6 +67,7 @@ class ReliabilityAnalyzer:
                             node.id,
                             "Add bounded retries with backoff and idempotency controls.",
                             Confidence.MEDIUM,
+                            external,
                         )
                     )
             if node.type == NodeType.LLM and not _has_failure_handling(workflow, node.id):
@@ -59,6 +82,7 @@ class ReliabilityAnalyzer:
                         node.id,
                         "Add error handling, fallback, or human review for failed model calls.",
                         Confidence.LOW,
+                        llm,
                     )
                 )
             if graph.out_degree(node.id) == 1 and node.type in {NodeType.EXTERNAL_API, NodeType.DATABASE, NodeType.LLM}:
@@ -73,6 +97,7 @@ class ReliabilityAnalyzer:
                         node.id,
                         "Consider adding explicit failure handling or compensation.",
                         Confidence.LOW,
+                        dependent,
                     )
                 )
         for cycle in list(nx.simple_cycles(graph)):
@@ -96,6 +121,42 @@ class ReliabilityAnalyzer:
         return findings
 
 
+def _any_declares(workflow: Workflow, keys: tuple[str, ...]) -> bool:
+    """Does any external call in this workflow declare one of these config fields?"""
+    return any(
+        any(key in config_key.lower() for config_key in node.configuration for key in keys)
+        for node in workflow.nodes
+        if node.type == NodeType.EXTERNAL_API
+    )
+
+
+def _unsupported_field(
+    workflow: Workflow, field: str, rule_id: str, population: int
+) -> EvaluationFinding:
+    return EvaluationFinding(
+        rule_id=rule_id,
+        dimension=EvaluationDimension.RELIABILITY,
+        severity=ValidationSeverity.INFO,
+        title=f"No {field} declared anywhere in this workflow",
+        message=(
+            f"None of the {population} external call(s) declare a {field}. The "
+            f"'{workflow.source_format}' format may not carry this field, so this is reported "
+            "once as advice rather than against each node."
+        ),
+        expected=f"External calls should declare a {field}.",
+        found=f"No {field} field on any external call.",
+        why_it_matters=(
+            "Without a declared bound, a hung dependency stalls the run - but if the platform "
+            "applies its own default, this may already be handled outside the workflow definition."
+        ),
+        remediation=(
+            f"Confirm the platform's default {field}, or declare one explicitly if the format "
+            "supports it."
+        ),
+        confidence=Confidence.LOW,
+    )
+
+
 def _finding(
     rule_id: str,
     severity: ValidationSeverity,
@@ -106,6 +167,7 @@ def _finding(
     node_id: str,
     remediation: str,
     confidence: Confidence,
+    rule_population: int | None = None,
 ) -> EvaluationFinding:
     return EvaluationFinding(
         rule_id=rule_id,
@@ -119,6 +181,7 @@ def _finding(
         node_id=node_id,
         remediation=remediation,
         confidence=confidence,
+        rule_population=rule_population,
     )
 
 

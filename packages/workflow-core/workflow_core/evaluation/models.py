@@ -48,6 +48,12 @@ class RequirementItem(BaseModel):
     normalized: str
     required: bool = True
     source_excerpt: str | None = None
+    #: Which requirements input this came from. Documents and prompts are matched by different
+    #: means and a miss from each carries different weight, so the provenance has to survive.
+    source: str = "prompt"
+    #: Where in the document, e.g. "BR-4" or "Step 3". Always None for prompt requirements.
+    source_anchor: str | None = None
+    source_document_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(use_enum_values=True)
@@ -95,6 +101,9 @@ class RequirementMatch(BaseModel):
     matched_node_ids: list[str] = Field(default_factory=list)
     evidence: str
     confidence: Confidence = Confidence.MEDIUM
+    #: "deterministic" or "ai:<provider>". A miss found by token overlap is far weaker
+    #: evidence than one an AI judged, and the finding severity depends on which it was.
+    match_method: str = "deterministic"
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -114,6 +123,10 @@ class EvaluationFinding(BaseModel):
     path: list[str] = Field(default_factory=list)
     remediation: str | None = None
     confidence: Confidence = Confidence.MEDIUM
+    #: How many subjects this rule was applicable to - external API nodes, LLM nodes,
+    #: requirements. Lets scoring say "3 of 12 external calls lack a timeout" instead of
+    #: subtracting a flat penalty three times, which made scores track workflow size.
+    rule_population: int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(use_enum_values=True)
@@ -138,7 +151,7 @@ class EvaluationResult(BaseModel):
     overall_score: int
     structural_score: int
     status: str = "completed"
-    evaluator_version: str = "part2-deterministic-v1"
+    evaluator_version: str = "part2-deterministic-v2"
     ai_provider: str | None = None
     ai_model: str | None = None
     ai_metadata: dict[str, Any] = Field(default_factory=dict)

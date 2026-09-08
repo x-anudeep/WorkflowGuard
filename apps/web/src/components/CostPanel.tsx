@@ -1,26 +1,8 @@
-"use client";
-
-import { useState } from "react";
-import { RefreshCw } from "lucide-react";
-
-import { api } from "@/lib/api";
 import { formatDimension, money } from "@/lib/format";
 import type { CostEstimate } from "@/types/workflow";
 
-export function CostPanel({ workflowId, initialEstimate }: { workflowId: string; initialEstimate: CostEstimate }) {
-  const [estimate, setEstimate] = useState(initialEstimate);
-  const [executions, setExecutions] = useState(Number(initialEstimate.scenario.executions_per_day ?? 100));
-  const [retryRate, setRetryRate] = useState(Number(initialEstimate.scenario.failure_retry_rate ?? 0.05));
-  const [busy, setBusy] = useState(false);
-
-  async function recalculate() {
-    setBusy(true);
-    try {
-      setEstimate(await api.estimateCost(workflowId, { executions_per_day: executions, failure_retry_rate: retryRate }));
-    } finally {
-      setBusy(false);
-    }
-  }
+export function CostPanel({ initialEstimate }: { initialEstimate: CostEstimate }) {
+  const estimate = initialEstimate;
 
   const top = [...estimate.line_items].sort((a, b) => b.estimated_cost_per_run - a.estimated_cost_per_run).slice(0, 5);
   return (
@@ -30,20 +12,6 @@ export function CostPanel({ workflowId, initialEstimate }: { workflowId: string;
         <Stat label="Daily" value={money(estimate.daily_cost)} />
         <Stat label="Monthly" value={money(estimate.monthly_cost)} />
         <Stat label="Annual" value={money(estimate.annual_cost)} />
-      </div>
-      <div className="grid gap-3 border border-line bg-panel p-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Executions / day</span>
-          <input value={executions} onChange={(event) => setExecutions(Number(event.target.value))} type="number" className="border border-line bg-white px-3 py-2" />
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Failure retry rate</span>
-          <input value={retryRate} onChange={(event) => setRetryRate(Number(event.target.value))} type="number" step="0.01" className="border border-line bg-white px-3 py-2" />
-        </label>
-        <button type="button" onClick={recalculate} disabled={busy} className="inline-flex items-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-medium text-white">
-          <RefreshCw size={16} />
-          {busy ? "Calculating..." : "Run Scenario"}
-        </button>
       </div>
       <div className="overflow-hidden border border-line">
         <table className="w-full min-w-[760px] text-left text-sm">

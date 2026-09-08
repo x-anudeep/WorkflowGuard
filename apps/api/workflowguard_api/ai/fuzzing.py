@@ -37,7 +37,20 @@ FUZZ_CASE_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["name", "description", "input_json", "target_node_ids", "failure_types"],
+                # Groq's strict mode requires *every* property to be listed in `required`;
+                # omitting the optional ones is a 400, which then falls back to inlining the
+                # whole schema into the prompt. Optional fields are expressed as nullable
+                # instead, which the clamping below already tolerates.
+                "required": [
+                    "name",
+                    "description",
+                    "input_json",
+                    "target_node_ids",
+                    "failure_types",
+                    "occurrence",
+                    "expected_handling",
+                    "rationale",
+                ],
                 "properties": {
                     "name": {"type": "string"},
                     "description": {"type": "string"},
@@ -53,9 +66,9 @@ FUZZ_CASE_SCHEMA: dict[str, Any] = {
                             "enum": [item.value for item in FailureType],
                         },
                     },
-                    "occurrence": {"type": "integer"},
-                    "expected_handling": {"type": "string"},
-                    "rationale": {"type": "string"},
+                    "occurrence": {"type": ["integer", "null"]},
+                    "expected_handling": {"type": ["string", "null"]},
+                    "rationale": {"type": ["string", "null"]},
                 },
             },
         }

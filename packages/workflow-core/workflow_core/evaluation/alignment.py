@@ -5,6 +5,7 @@ from workflow_core.evaluation.models import (
     Confidence,
     EvaluationDimension,
     EvaluationFinding,
+    RequirementItem,
     RequirementKind,
     RequirementMatch,
     RequirementSpec,
@@ -13,49 +14,23 @@ from workflow_core.evaluation.understanding import WorkflowUnderstanding
 
 
 class AlignmentAnalyzer:
-    def analyze(self, spec: RequirementSpec, workflow: Workflow) -> tuple[list[RequirementMatch], list[EvaluationFinding]]:
+    def analyze(
+        self,
+        spec: RequirementSpec,
+        workflow: Workflow,
+        *,
+        supplied_matches: list[RequirementMatch] | None = None,
+    ) -> tuple[list[RequirementMatch], list[EvaluationFinding]]:
         understanding = WorkflowUnderstanding(workflow)
         matches: list[RequirementMatch] = []
         findings: list[EvaluationFinding] = []
+        by_id = {match.requirement_id: match for match in supplied_matches or []}
 
         for requirement in spec.requirements:
-            candidates = _candidates_for_requirement(requirement.kind, requirement.normalized, understanding)
-            if candidates:
-                matches.append(
-                    RequirementMatch(
-                        requirement_id=requirement.id,
-                        requirement_text=requirement.text,
-                        status="matched",
-                        matched_node_ids=[node.id for node in candidates[:3]],
-                        evidence=f"Matched workflow node(s): {', '.join(node.name for node in candidates[:3])}.",
-                        confidence=Confidence.MEDIUM,
-                    )
-                )
-            else:
-                matches.append(
-                    RequirementMatch(
-                        requirement_id=requirement.id,
-                        requirement_text=requirement.text,
-                        status="missing",
-                        evidence="No canonical workflow node or configuration matched this requirement.",
-                        confidence=Confidence.MEDIUM,
-                    )
-                )
-                findings.append(
-                    EvaluationFinding(
-                        rule_id="WG-ALIGN-001",
-                        dimension=EvaluationDimension.PROMPT_ALIGNMENT,
-                        severity=ValidationSeverity.ERROR,
-                        title="Missing required behavior",
-                        message=f"Required workflow behavior is absent: {requirement.text}",
-                        expected=requirement.text,
-                        found="No matching workflow node or path.",
-                        why_it_matters="The workflow may not satisfy the original user requirement.",
-                        remediation="Add a workflow step that explicitly implements this requirement.",
-                        confidence=Confidence.MEDIUM,
-                        metadata={"requirement_id": requirement.id, "requirement_kind": requirement.kind},
-                    )
-                )
+            match = by_id.get(requirement.id) or _deterministic_match(requirement, understanding)
+            matches.append(match)
+            if match.status == "missing":
+                findings.append(_missing_finding(requirement, match, len(spec.requirements)))
 
         findings.extend(_ordering_findings(spec, matches, understanding))
         findings.extend(_constraint_findings(spec, workflow, understanding))
@@ -63,8 +38,77 @@ class AlignmentAnalyzer:
         return matches, findings
 
 
-def _candidates_for_requirement(kind: str, normalized: str, understanding: WorkflowUnderstanding):
-    requirement_systems = set(normalized.split()) & {"gmail", "sap", "slack", "salesforce", "stripe", "postgres", "mysql", "s3", "openai"}
+def _deterministic_match(requirement: RequirementItem, understanding: WorkflowUnderstanding) -> RequirementMatch:
+    candidates = _candidates_for_requirement(
+        requirement.kind,
+        requirement.normalized,
+        understanding,
+        systems=requirement.metadata.get("systems") or [],
+    )
+    if candidates:
+        return RequirementMatch(
+            requirement_id=requirement.id,
+            requirement_text=requirement.text,
+            status="matched",
+            matched_node_ids=[node.id for node in candidates[:3]],
+            evidence=f"Matched workflow node(s): {', '.join(node.name for node in candidates[:3])}.",
+            confidence=Confidence.MEDIUM,
+        )
+    return RequirementMatch(
+        requirement_id=requirement.id,
+        requirement_text=requirement.text,
+        status="missing",
+        evidence="No canonical workflow node or configuration matched this requirement.",
+        confidence=Confidence.MEDIUM,
+    )
+
+
+def _missing_finding(
+    requirement: RequirementItem, match: RequirementMatch, population: int | None = None
+) -> EvaluationFinding:
+    """A miss is only worth an ERROR when something competent decided it was missing.
+
+    Prompt requirements share vocabulary with node names, so token overlap is fair evidence
+    there. A document requirement is written by an analyst who never saw the graph, so a
+    keyword miss usually means the matcher failed, not that the behaviour is absent - and at
+    18 points each those would floor the dimension on any workflow with a BRD attached.
+    """
+    weak = requirement.source == "document" and match.match_method == "deterministic"
+    severity = ValidationSeverity.WARNING if weak else ValidationSeverity.ERROR
+    where = f" ({requirement.source_anchor})" if requirement.source_anchor else ""
+    found = (
+        "No keyword match found; matching ran without an AI provider."
+        if weak
+        else "No matching workflow node or path."
+    )
+    return EvaluationFinding(
+        rule_id="WG-ALIGN-001",
+        dimension=EvaluationDimension.PROMPT_ALIGNMENT,
+        severity=severity,
+        title="Missing required behavior",
+        message=f"Required workflow behavior is absent{where}: {requirement.text}",
+        expected=requirement.text,
+        found=found,
+        why_it_matters="The workflow may not satisfy the original user requirement.",
+        remediation="Add a workflow step that explicitly implements this requirement.",
+        confidence=Confidence.LOW if weak else Confidence.MEDIUM,
+        rule_population=population,
+        metadata={
+            "requirement_id": requirement.id,
+            "requirement_kind": requirement.kind,
+            "requirement_source": requirement.source,
+            "source_anchor": requirement.source_anchor,
+            "match_method": match.match_method,
+        },
+    )
+
+
+def _candidates_for_requirement(kind: str, normalized: str, understanding: WorkflowUnderstanding, systems=()):
+    # Documents name their own integrations, so prefer those over the fixed alias list, which
+    # covers none of the systems in the reference corpus.
+    requirement_systems = {system.lower() for system in systems} or (
+        set(normalized.split()) & {"gmail", "sap", "slack", "salesforce", "stripe", "postgres", "mysql", "s3", "openai"}
+    )
     if requirement_systems:
         system_matches = [
             node

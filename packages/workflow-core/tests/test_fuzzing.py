@@ -207,11 +207,15 @@ def test_reliability_score_is_unchanged_when_no_fuzz_report_exists() -> None:
 
     assert without.score == explicit_none.score
     assert "fuzz_robustness" not in without.calculation
-    assert without.calculation["penalty"] == sum(
-        {"ERROR": 18, "WARNING": 7, "INFO": 2, "CRITICAL": 35}[str(finding.severity)]
-        for finding in findings
-        if finding.dimension == EvaluationDimension.RELIABILITY
+    # The penalty is budgeted per rule now, so it is no longer the raw severity sum. It must
+    # still be fully explained by the breakdown - that is what "transparent penalty" means.
+    breakdown = without.calculation["rule_breakdown"]
+    assert breakdown
+    assert without.calculation["penalty"] == round(
+        sum(entry["applied"] for entry in breakdown.values())
     )
+    for rule_id, entry in breakdown.items():
+        assert entry["applied"] <= entry["budget"], rule_id
 
 
 def test_reliability_blends_static_and_measured_robustness() -> None:
