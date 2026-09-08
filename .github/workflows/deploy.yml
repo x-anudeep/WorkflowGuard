@@ -94,6 +94,10 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
     steps:
       - uses: actions/checkout@v5
+      # Vercel's Python runtime builds with uv, which is not on GitHub runners.
+      # Without it `vercel build` stops at "uv is required but was not found in PATH".
+      # Only the API needs this; the web project builds with Node.
+      - uses: astral-sh/setup-uv@v6
       - run: npm install --global vercel@latest
       - run: vercel pull --yes --environment=production
       - run: vercel build --prod
