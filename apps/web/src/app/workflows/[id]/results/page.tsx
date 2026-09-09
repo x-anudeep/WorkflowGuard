@@ -106,6 +106,11 @@ export default async function WorkflowScoresPage({ params }: { params: Promise<{
               note={measured ? "measured by fuzzing" : "declared only"}
             />
             <ScoreCard label="Maintainability" score={dimensions.maintainability} />
+            <ScoreCard
+              label="Test Coverage"
+              score={dimensions.test_coverage}
+              note={typeof dimensions.test_coverage === "number" ? "from the latest test run" : "no test run yet"}
+            />
           </div>
           {!hasRequirements && (
             <p className="mt-3 text-sm text-slate-500">
