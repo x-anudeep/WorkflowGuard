@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     ai_api_key: str | None = None
     ai_model: str = "gpt-4o-mini"
     ai_timeout_seconds: float = 20.0
+    #: Where emitted workflows send their integration calls. n8n must be able to reach this
+    #: host, so in docker-compose it is the API's service name rather than localhost.
+    mock_base_url: str = "http://api:8000/mock"
     fuzz_max_cases: int = 60
     fuzz_default_seed: int = 1337
 
