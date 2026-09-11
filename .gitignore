@@ -25,6 +25,12 @@ test-results/
 # Local sample workflows / scratch inputs (not shared)
 references/
 
+# Local dev database. The compose stack uses Postgres; running the API directly on a machine
+# without it falls back to SQLite, which is a developer's own scratch state, not the schema of
+# record - that lives in the Alembic migrations.
+workflowguard-local.db
+*.db-journal
+
 # Local virtualenv
 .venv/
 
