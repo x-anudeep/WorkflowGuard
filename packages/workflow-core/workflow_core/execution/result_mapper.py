@@ -180,9 +180,9 @@ def _record_branch(
     for index, items in enumerate(outputs):
         if not items:
             continue
-        edge_id = emitted.edges.edge_for(n8n_name, index)
-        if edge_id:
-            result.branch_decisions[decider] = edge_id
+        label = emitted.edges.branch_label(n8n_name, index)
+        if label:
+            result.branch_decisions[decider] = label
         return
 
 

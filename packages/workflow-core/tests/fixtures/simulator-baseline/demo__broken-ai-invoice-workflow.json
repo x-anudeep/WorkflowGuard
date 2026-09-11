@@ -1,0 +1,344 @@
+{
+  "example": "examples/demo/broken-ai-invoice-workflow.json",
+  "test_count": 12,
+  "tests": {
+    "Branch: amount_check to sap_save": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "high amount bypasses approval"
+      },
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3",
+        "e5"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "high amount bypasses approval"
+      },
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3",
+        "e5"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 50.0,
+        "edge": 80.0,
+        "node": 100.0,
+        "overall": 82.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Save invoice to SAP authorization failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "normal amount"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e4"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save"
+      ],
+      "failures": [
+        "Save invoice to SAP: Simulated authorization failure."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Save invoice to SAP http_429 failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "normal amount"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e4"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save"
+      ],
+      "failures": [
+        "Save invoice to SAP: Simulated HTTP 429/rate limit."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Save invoice to SAP http_500 failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "normal amount"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e4"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save"
+      ],
+      "failures": [
+        "Save invoice to SAP: Simulated HTTP 500."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Save invoice to SAP timeout failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "normal amount"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e4"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save"
+      ],
+      "failures": [
+        "Save invoice to SAP: Simulated timeout."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Save invoice to SAP unavailable failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "amount_check": "normal amount"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e4"
+      ],
+      "execution_order": [
+        "gmail_trigger",
+        "extract_invoice",
+        "amount_check",
+        "sap_save"
+      ],
+      "failures": [
+        "Save invoice to SAP: Simulated dependency unavailable."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    }
+  },
+  "workflow": {
+    "edge_count": 5,
+    "edge_ids": [
+      "e1",
+      "e2",
+      "e3",
+      "e4",
+      "e5"
+    ],
+    "name": "Broken AI Invoice Processing Workflow",
+    "node_count": 5,
+    "node_ids": [
+      "amount_check",
+      "end",
+      "extract_invoice",
+      "gmail_trigger",
+      "sap_save"
+    ],
+    "source_format": "generic_json"
+  }
+}

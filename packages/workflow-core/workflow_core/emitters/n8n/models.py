@@ -61,15 +61,33 @@ class EdgeMap(BaseModel):
     #: tuple so the model round-trips through JSON unchanged.
     by_output: dict[str, str] = Field(default_factory=dict)
 
+    #: Same key -> how the simulator described taking that branch: the edge's label, else its
+    #: condition, else its target. `SimulationResult.branch_decisions` has always held this
+    #: human-readable form rather than an edge id, and the UI renders it directly, so the n8n
+    #: mapper has to produce the same thing or every stored run changes shape.
+    branch_labels: dict[str, str] = Field(default_factory=dict)
+
     @staticmethod
     def key(n8n_name: str, output_index: int) -> str:
         return f"{n8n_name}::{output_index}"
 
-    def record(self, n8n_name: str, output_index: int, canonical_edge_id: str) -> None:
-        self.by_output[self.key(n8n_name, output_index)] = canonical_edge_id
+    def record(
+        self,
+        n8n_name: str,
+        output_index: int,
+        canonical_edge_id: str,
+        branch_label: str | None = None,
+    ) -> None:
+        key = self.key(n8n_name, output_index)
+        self.by_output[key] = canonical_edge_id
+        if branch_label:
+            self.branch_labels[key] = branch_label
 
     def edge_for(self, n8n_name: str, output_index: int) -> str | None:
         return self.by_output.get(self.key(n8n_name, output_index))
+
+    def branch_label(self, n8n_name: str, output_index: int) -> str | None:
+        return self.branch_labels.get(self.key(n8n_name, output_index))
 
 
 class EmittedWorkflow(BaseModel):

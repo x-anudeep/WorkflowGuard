@@ -142,15 +142,21 @@ class TestIdentityTranslation:
 
 
 class TestBranchDecisions:
+    """`branch_decisions` holds the edge's label, not its id.
+
+    That is the shape the simulator always produced and the UI renders directly, so the n8n
+    mapper has to match it or every stored run changes meaning.
+    """
+
     def test_the_taken_output_is_recorded(self, emitted):
         execution = _execution({"Gate": [_task(index=0, outputs=[[{"json": {}}], []])]})
         result = map_execution(execution, emitted, _test(), workflow_id="w1")
-        assert result.branch_decisions["gate"] == "e_high"
+        assert result.branch_decisions["gate"] == "high"
 
     def test_the_second_output_is_recorded_when_it_is_the_one_taken(self, emitted):
         execution = _execution({"Gate": [_task(index=0, outputs=[[], [{"json": {}}]])]})
         result = map_execution(execution, emitted, _test(), workflow_id="w1")
-        assert result.branch_decisions["gate"] == "e_low"
+        assert result.branch_decisions["gate"] == "low"
 
     def test_a_router_files_its_decision_under_the_canonical_node(self):
         """The router exists only because that node could not hold its own outputs."""
@@ -172,7 +178,9 @@ class TestBranchDecisions:
         router = next(iter(emitted.nodes.routers))
         execution = _execution({router: [_task(index=0, outputs=[[{"json": {}}], []])]})
         result = map_execution(execution, emitted, _test(), workflow_id="w1")
-        assert result.branch_decisions == {"approve": "e1"}
+        # No label on that edge, so the condition describes the branch - exactly the
+        # `label or condition or target` fallback the simulator used.
+        assert result.branch_decisions == {"approve": "approved == true"}
 
 
 class TestFailureDetection:

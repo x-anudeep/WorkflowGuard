@@ -1,0 +1,215 @@
+{
+  "example": "examples/n8n/orphan-node.json",
+  "test_count": 11,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Unused HTTP authorization failure": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Unused HTTP http_429 failure": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Unused HTTP http_500 failure": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Unused HTTP timeout failure": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Unused HTTP unavailable failure": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "FAILED"
+    }
+  },
+  "workflow": {
+    "edge_count": 0,
+    "edge_ids": [],
+    "name": "n8n orphan",
+    "node_count": 2,
+    "node_ids": [
+      "trigger",
+      "unused"
+    ],
+    "source_format": "n8n"
+  }
+}

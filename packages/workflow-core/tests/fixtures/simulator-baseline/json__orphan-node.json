@@ -1,0 +1,160 @@
+{
+  "example": "examples/json/orphan-node.json",
+  "test_count": 6,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task",
+        "task->end"
+      ],
+      "execution_order": [
+        "start",
+        "task",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task",
+        "task->end"
+      ],
+      "execution_order": [
+        "start",
+        "task",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task",
+        "task->end"
+      ],
+      "execution_order": [
+        "start",
+        "task",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task",
+        "task->end"
+      ],
+      "execution_order": [
+        "start",
+        "task",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task",
+        "task->end"
+      ],
+      "execution_order": [
+        "start",
+        "task",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task",
+        "task->end"
+      ],
+      "execution_order": [
+        "start",
+        "task",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 2,
+    "edge_ids": [
+      "start->task",
+      "task->end"
+    ],
+    "name": "Workflow with orphan node",
+    "node_count": 4,
+    "node_ids": [
+      "end",
+      "orphan",
+      "start",
+      "task"
+    ],
+    "source_format": "generic_json"
+  }
+}

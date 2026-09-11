@@ -428,7 +428,7 @@ class _Builder:
             )
             return
         self._connect_raw(source_name, output_index, target)
-        self.edge_map.record(source_name, output_index, edge.id)
+        self.edge_map.record(source_name, output_index, edge.id, _branch_label(edge))
 
     def _connect_raw(self, source_name: str, output_index: int, target_name: str) -> None:
         main = self.connections.setdefault(source_name, {}).setdefault("main", [])
@@ -490,6 +490,11 @@ class _Builder:
         siblings = [n for n, d in sorted(self._depths.items()) if d == depth - offset]
         row = siblings.index(node_id) if node_id in siblings else 0
         return [(depth + 1) * _COLUMN_WIDTH, row * _ROW_HEIGHT]
+
+
+def _branch_label(edge: Edge) -> str:
+    """How the simulator described taking this edge, so stored runs keep their shape."""
+    return edge.label or edge.condition or edge.target
 
 
 def _retry_count(node: Node) -> int:

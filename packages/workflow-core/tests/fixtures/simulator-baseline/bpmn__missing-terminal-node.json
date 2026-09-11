@@ -1,0 +1,159 @@
+{
+  "example": "examples/bpmn/missing-terminal-node.bpmn",
+  "test_count": 6,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "Task_2"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "Task_2"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "Task_2"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "Task_2"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "Task_2"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "Task_2"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 2,
+    "edge_ids": [
+      "Flow_1",
+      "Flow_2"
+    ],
+    "name": "BPMN missing terminal",
+    "node_count": 3,
+    "node_ids": [
+      "StartEvent_1",
+      "Task_1",
+      "Task_2"
+    ],
+    "source_format": "bpmn"
+  }
+}
