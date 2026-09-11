@@ -1,0 +1,401 @@
+{
+  "id": "3",
+  "finished": false,
+  "mode": "webhook",
+  "retryOf": null,
+  "retrySuccessId": null,
+  "status": "error",
+  "startedAt": "2026-09-11T18:10:42.286Z",
+  "stoppedAt": "2026-09-11T18:10:42.538Z",
+  "workflowId": "UxPgy1BG1fbcqetg",
+  "waitTill": null,
+  "storedAt": "db",
+  "jsonSizeBytes": 5950,
+  "workflowVersionId": "ccf3033f-7f10-4ac2-87ec-868c47ae6fed",
+  "data": {
+    "version": 1,
+    "startData": {},
+    "resultData": {
+      "error": {
+        "level": "warning",
+        "shouldReport": true,
+        "tags": {},
+        "timestamp": 1789150242534,
+        "context": {
+          "itemIndex": 0,
+          "request": {
+            "headers": {
+              "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, image/*;q=0.8, */*;q=0.7"
+            },
+            "method": "GET",
+            "uri": "http://127.0.0.1:9/nope",
+            "gzip": true,
+            "rejectUnauthorized": true,
+            "followRedirect": true,
+            "resolveWithFullResponse": true,
+            "sendCredentialsOnCrossOriginRedirect": true,
+            "followAllRedirects": true,
+            "timeout": 2000,
+            "encoding": null,
+            "json": false,
+            "useStream": true
+          }
+        },
+        "functionality": "regular",
+        "name": "NodeApiError",
+        "node": {
+          "id": "bbbbbbbb-2222-4222-8222-222222222222",
+          "name": "Flaky Call",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 100,
+          "position": [
+            220,
+            0
+          ],
+          "parameters": {
+            "curlImport": "",
+            "method": "GET",
+            "url": "http://127.0.0.1:9/nope",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": false,
+            "sendBody": false,
+            "options": {
+              "timeout": 2000
+            },
+            "infoMessage": ""
+          }
+        },
+        "messages": [
+          "connect ECONNREFUSED 127.0.0.1:9",
+          "connect ECONNREFUSED 127.0.0.1:9"
+        ],
+        "httpCode": "ECONNREFUSED",
+        "message": "The service refused the connection - perhaps it is offline",
+        "stack": "NodeApiError: The service refused the connection - perhaps it is offline\n    at ExecuteContext.execute (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-nodes-base/nodes/HttpRequest/V3/HttpRequestV3.node.ts:890:16)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at WorkflowExecute.executeNode (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1091:8)\n    at WorkflowExecute.runNode (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1391:11)\n    at /tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2293:27\n    at /tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2774:11"
+      },
+      "runData": {
+        "Webhook": [
+          {
+            "startTime": 1789150242291,
+            "executionIndex": 0,
+            "source": [],
+            "hints": [],
+            "executionTime": 1,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [
+                  {
+                    "json": {
+                      "headers": {
+                        "accept-encoding": "identity",
+                        "content-length": "16",
+                        "host": "localhost:5678",
+                        "user-agent": "Python-urllib/3.14",
+                        "content-type": "application/json",
+                        "x-n8n-api-key": "",
+                        "connection": "close"
+                      },
+                      "params": {},
+                      "query": {},
+                      "body": {
+                        "amount": 5000
+                      },
+                      "webhookUrl": "http://localhost:5678/webhook/wg-stoperr",
+                      "executionMode": "production"
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "Flaky Call": [
+          {
+            "startTime": 1789150242292,
+            "executionIndex": 1,
+            "source": [
+              {
+                "previousNode": "Webhook",
+                "previousNodeOutput": 0,
+                "previousNodeRun": 0
+              }
+            ],
+            "hints": [],
+            "executionTime": 245,
+            "executionStatus": "error",
+            "error": {
+              "level": "warning",
+              "shouldReport": true,
+              "tags": {},
+              "timestamp": 1789150242534,
+              "context": {
+                "itemIndex": 0,
+                "request": {
+                  "headers": {
+                    "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, image/*;q=0.8, */*;q=0.7"
+                  },
+                  "method": "GET",
+                  "uri": "http://127.0.0.1:9/nope",
+                  "gzip": true,
+                  "rejectUnauthorized": true,
+                  "followRedirect": true,
+                  "resolveWithFullResponse": true,
+                  "sendCredentialsOnCrossOriginRedirect": true,
+                  "followAllRedirects": true,
+                  "timeout": 2000,
+                  "encoding": null,
+                  "json": false,
+                  "useStream": true
+                }
+              },
+              "functionality": "regular",
+              "name": "NodeApiError",
+              "node": {
+                "id": "bbbbbbbb-2222-4222-8222-222222222222",
+                "name": "Flaky Call",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "retryOnFail": true,
+                "maxTries": 3,
+                "waitBetweenTries": 100,
+                "position": [
+                  220,
+                  0
+                ],
+                "parameters": {
+                  "curlImport": "",
+                  "method": "GET",
+                  "url": "http://127.0.0.1:9/nope",
+                  "authentication": "none",
+                  "provideSslCertificates": false,
+                  "sendQuery": false,
+                  "sendHeaders": false,
+                  "sendBody": false,
+                  "options": {
+                    "timeout": 2000
+                  },
+                  "infoMessage": ""
+                }
+              },
+              "messages": [
+                "connect ECONNREFUSED 127.0.0.1:9",
+                "connect ECONNREFUSED 127.0.0.1:9"
+              ],
+              "httpCode": "ECONNREFUSED",
+              "message": "The service refused the connection - perhaps it is offline",
+              "stack": "NodeApiError: The service refused the connection - perhaps it is offline\n    at ExecuteContext.execute (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-nodes-base/nodes/HttpRequest/V3/HttpRequestV3.node.ts:890:16)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at WorkflowExecute.executeNode (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1091:8)\n    at WorkflowExecute.runNode (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1391:11)\n    at /tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2293:27\n    at /tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2774:11"
+            }
+          }
+        ]
+      },
+      "lastNodeExecuted": "Flaky Call"
+    },
+    "executionData": {
+      "contextData": {},
+      "nodeExecutionStack": [
+        {
+          "node": {
+            "id": "bbbbbbbb-2222-4222-8222-222222222222",
+            "name": "Flaky Call",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "retryOnFail": true,
+            "maxTries": 3,
+            "waitBetweenTries": 100,
+            "position": [
+              220,
+              0
+            ],
+            "parameters": {
+              "curlImport": "",
+              "method": "GET",
+              "url": "http://127.0.0.1:9/nope",
+              "authentication": "none",
+              "provideSslCertificates": false,
+              "sendQuery": false,
+              "sendHeaders": false,
+              "sendBody": false,
+              "options": {
+                "timeout": 2000
+              },
+              "infoMessage": ""
+            }
+          },
+          "data": {
+            "main": [
+              [
+                {
+                  "json": {
+                    "headers": {
+                      "accept-encoding": "identity",
+                      "content-length": "16",
+                      "host": "localhost:5678",
+                      "user-agent": "Python-urllib/3.14",
+                      "content-type": "application/json",
+                      "x-n8n-api-key": "",
+                      "connection": "close"
+                    },
+                    "params": {},
+                    "query": {},
+                    "body": {
+                      "amount": 5000
+                    },
+                    "webhookUrl": "http://localhost:5678/webhook/wg-stoperr",
+                    "executionMode": "production"
+                  },
+                  "pairedItem": {
+                    "item": 0
+                  }
+                }
+              ]
+            ]
+          },
+          "source": {
+            "main": [
+              {
+                "previousNode": "Webhook",
+                "previousNodeOutput": 0,
+                "previousNodeRun": 0
+              }
+            ]
+          }
+        }
+      ],
+      "metadata": {},
+      "waitingExecution": {},
+      "waitingExecutionSource": {},
+      "runtimeData": {
+        "version": 1,
+        "establishedAt": 1789150242282,
+        "source": "webhook",
+        "triggerNode": {
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook"
+        },
+        "redaction": {
+          "version": 2,
+          "production": false,
+          "manual": false
+        }
+      }
+    },
+    "resumeToken": "7d30f6e7e27ce99955a45c03f9422bc198915ab429c43e83656c59096e349a9b"
+  },
+  "workflowData": {
+    "id": "UxPgy1BG1fbcqetg",
+    "name": "wg-spike-stoperr",
+    "nodes": [
+      {
+        "id": "aaaaaaaa-1111-4111-8111-111111111111",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "multipleMethods": false,
+          "httpMethod": "POST",
+          "path": "wg-stoperr",
+          "authentication": "none",
+          "responseMode": "lastNode",
+          "responseData": "firstEntryJson",
+          "options": {}
+        },
+        "webhookId": "0879a4db-3ad6-4070-afc3-fb0df932aac1"
+      },
+      {
+        "id": "bbbbbbbb-2222-4222-8222-222222222222",
+        "name": "Flaky Call",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 100,
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "curlImport": "",
+          "method": "GET",
+          "url": "http://127.0.0.1:9/nope",
+          "authentication": "none",
+          "provideSslCertificates": false,
+          "sendQuery": false,
+          "sendHeaders": false,
+          "sendBody": false,
+          "options": {
+            "timeout": 2000
+          },
+          "infoMessage": ""
+        }
+      },
+      {
+        "id": "cccccccc-3333-4333-8333-333333333333",
+        "name": "Success Path",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          440,
+          -100
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "s1",
+                "name": "route",
+                "value": "ok",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Flaky Call",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Flaky Call": {
+        "main": [
+          [
+            {
+              "node": "Success Path",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "nodeGroups": []
+  },
+  "customData": {}
+}

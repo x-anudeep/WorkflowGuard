@@ -29,12 +29,21 @@ class NodeMap(BaseModel):
     #: Canonical ids compiled as approval shims, so `approval_requests` can be rebuilt.
     approval_nodes: set[str] = Field(default_factory=set)
 
+    #: Synthetic router name -> the canonical node it branches for. A router owns the outputs
+    #: its canonical node could not, so a branch taken at a router is a decision made *by* that
+    #: node, and `branch_decisions` has to be filed under the canonical id rather than lost.
+    routers: dict[str, str] = Field(default_factory=dict)
+
     def canonical(self, n8n_name: str) -> str | None:
         """The canonical id behind an n8n node name, or None if it is synthetic."""
         return self.n8n_to_canonical.get(n8n_name)
 
     def is_synthetic(self, n8n_name: str) -> bool:
         return n8n_name in self.synthetic
+
+    def decider(self, n8n_name: str) -> str | None:
+        """The canonical node whose branch this n8n node decides - itself, or the one it routes for."""
+        return self.n8n_to_canonical.get(n8n_name) or self.routers.get(n8n_name)
 
 
 class EdgeMap(BaseModel):

@@ -371,6 +371,7 @@ class _Builder:
                 }
             )
             self.node_map.synthetic.add(router_name)
+            self.node_map.routers[router_name] = canonical_id
             self._connect_raw(name, 0, router_name)
 
         emitted = self._find(router_name)

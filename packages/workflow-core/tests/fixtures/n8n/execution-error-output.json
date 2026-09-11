@@ -1,0 +1,309 @@
+{
+  "id": "2",
+  "finished": true,
+  "mode": "webhook",
+  "retryOf": null,
+  "retrySuccessId": null,
+  "status": "success",
+  "startedAt": "2026-09-11T18:10:12.467Z",
+  "stoppedAt": "2026-09-11T18:10:12.720Z",
+  "workflowId": "4cEi4JmpCBQtBAdv",
+  "waitTill": null,
+  "storedAt": "db",
+  "jsonSizeBytes": 6354,
+  "workflowVersionId": "7042ce4e-baca-45d9-aa4c-6c8b630d5284",
+  "data": {
+    "version": 1,
+    "startData": {},
+    "resultData": {
+      "runData": {
+        "Webhook": [
+          {
+            "startTime": 1789150212473,
+            "executionIndex": 0,
+            "source": [],
+            "hints": [],
+            "executionTime": 0,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [
+                  {
+                    "json": {
+                      "headers": {
+                        "accept-encoding": "identity",
+                        "content-length": "16",
+                        "host": "localhost:5678",
+                        "user-agent": "Python-urllib/3.14",
+                        "content-type": "application/json",
+                        "x-n8n-api-key": "",
+                        "connection": "close"
+                      },
+                      "params": {},
+                      "query": {},
+                      "body": {
+                        "amount": 5000
+                      },
+                      "webhookUrl": "http://localhost:5678/webhook/wg-fail",
+                      "executionMode": "production"
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "Flaky Call": [
+          {
+            "startTime": 1789150212473,
+            "executionIndex": 1,
+            "source": [
+              {
+                "previousNode": "Webhook",
+                "previousNodeOutput": 0,
+                "previousNodeRun": 0
+              }
+            ],
+            "hints": [],
+            "executionTime": 244,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [],
+                [
+                  {
+                    "json": {
+                      "headers": {
+                        "accept-encoding": "identity",
+                        "content-length": "16",
+                        "host": "localhost:5678",
+                        "user-agent": "Python-urllib/3.14",
+                        "content-type": "application/json",
+                        "x-n8n-api-key": "",
+                        "connection": "close"
+                      },
+                      "params": {},
+                      "query": {},
+                      "body": {
+                        "amount": 5000
+                      },
+                      "webhookUrl": "http://localhost:5678/webhook/wg-fail",
+                      "executionMode": "production",
+                      "error": {
+                        "message": "connect ECONNREFUSED 127.0.0.1:9",
+                        "name": "Error",
+                        "stack": "Error: connect ECONNREFUSED 127.0.0.1:9\n    at AxiosError.from (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/@n8n/backend-network/node_modules/axios/dist/node/axios.cjs:1355:24)\n    at RedirectableRequest.handleRequestError (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/@n8n/backend-network/node_modules/axios/dist/node/axios.cjs:4026:25)\n    at RedirectableRequest.emit (node:events:526:24)\n    at ClientRequest.eventHandlers.<computed> (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/follow-redirects/index.js:56:24)\n    at ClientRequest.emit (node:events:514:28)\n    at emitErrorEvent (node:_http_client:114:11)\n    at Socket.socketErrorListener (node:_http_client:766:5)\n    at Socket.emit (node:events:526:24)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at Axios.request (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/@n8n/backend-network/node_modules/axios/dist/node/axios.cjs:5427:41)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at invokeAxios (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/@n8n/backend-network/src/http/axios/invoke.ts:15:10)\n    at executeLegacyRequest (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/@n8n/backend-network/src/http/legacy-request.ts:83:6)\n    at Object.requestLegacy (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/@n8n/backend-network/src/http/outbound-http.ts:212:13)\n    at proxyRequestToAxios (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/node-execution-context/utils/request-helpers/legacy-request-adapter.ts:27:9)\n    at Object.request (/tmp/claude-1000/-home-kavin-codes-WorkflowGuard/335792ff-8a95-4eab-be19-ad1e7777baf0/scratchpad/spike/n8nroot/node_modules/n8n-core/src/execution-engine/node-execution-context/utils/request-helpers/factory.ts:167:11)",
+                        "code": "ECONNREFUSED"
+                      }
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "Error Path": [
+          {
+            "startTime": 1789150212717,
+            "executionIndex": 2,
+            "source": [
+              {
+                "previousNode": "Flaky Call",
+                "previousNodeOutput": 1,
+                "previousNodeRun": 0
+              }
+            ],
+            "hints": [],
+            "executionTime": 2,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [
+                  {
+                    "json": {
+                      "route": "recovered"
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "lastNodeExecuted": "Error Path"
+    },
+    "executionData": {
+      "contextData": {},
+      "nodeExecutionStack": [],
+      "metadata": {},
+      "waitingExecution": {},
+      "waitingExecutionSource": {},
+      "runtimeData": {
+        "version": 1,
+        "establishedAt": 1789150212464,
+        "source": "webhook",
+        "triggerNode": {
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook"
+        },
+        "redaction": {
+          "version": 2,
+          "production": false,
+          "manual": false
+        }
+      }
+    },
+    "resumeToken": "33e2f2294ac460b55754d653160b2d8dd36fb502351db0c409f40f101c0eb932"
+  },
+  "workflowData": {
+    "id": "4cEi4JmpCBQtBAdv",
+    "name": "wg-spike-failure",
+    "nodes": [
+      {
+        "id": "aaaaaaaa-1111-4111-8111-111111111111",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "multipleMethods": false,
+          "httpMethod": "POST",
+          "path": "wg-fail",
+          "authentication": "none",
+          "responseMode": "lastNode",
+          "responseData": "firstEntryJson",
+          "options": {}
+        },
+        "webhookId": "828ca1a1-199a-4c6c-84eb-434b73671c77"
+      },
+      {
+        "id": "bbbbbbbb-2222-4222-8222-222222222222",
+        "name": "Flaky Call",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 100,
+        "onError": "continueErrorOutput",
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "curlImport": "",
+          "method": "GET",
+          "url": "http://127.0.0.1:9/nope",
+          "authentication": "none",
+          "provideSslCertificates": false,
+          "sendQuery": false,
+          "sendHeaders": false,
+          "sendBody": false,
+          "options": {
+            "timeout": 2000
+          },
+          "infoMessage": ""
+        }
+      },
+      {
+        "id": "cccccccc-3333-4333-8333-333333333333",
+        "name": "Success Path",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          440,
+          -100
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "s1",
+                "name": "route",
+                "value": "ok",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      },
+      {
+        "id": "dddddddd-4444-4444-8444-444444444444",
+        "name": "Error Path",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          440,
+          100
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "s2",
+                "name": "route",
+                "value": "recovered",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Flaky Call",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Flaky Call": {
+        "main": [
+          [
+            {
+              "node": "Success Path",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Error Path",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "nodeGroups": []
+  },
+  "customData": {}
+}
