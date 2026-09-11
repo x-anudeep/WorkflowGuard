@@ -107,9 +107,11 @@ class N8nClient:
     def trigger(self, webhook_path: str, payload: dict[str, Any]) -> tuple[int, Any]:
         """POST to the workflow's webhook. Returns the status and body.
 
-        A non-2xx is not raised: a workflow whose last node produced nothing answers 500 even
-        though the execution itself may have run exactly as intended. The execution record is
-        the authority on what happened, not this response.
+        The emitted webhook answers on receipt, so this returns as soon as n8n has accepted the
+        run rather than when the workflow finishes; `wait_for_execution` picks it up from there.
+
+        A non-2xx is not raised. The execution record is the authority on what happened, and a
+        trigger that was accepted tells us nothing about whether the workflow succeeded.
         """
         url = f"{self.base_url}/webhook/{webhook_path.lstrip('/')}"
         try:

@@ -30,6 +30,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from workflow_core.canonical.models import Workflow
 from workflow_core.emitters.n8n import N8nEmitter
+from workflow_core.emitters.n8n.emitter import DEFAULT_EXECUTION_TIMEOUT_SECONDS
 from workflow_core.emitters.n8n.models import EmittedWorkflow
 from workflow_core.execution.n8n_client import N8nClient, N8nError
 from workflow_core.execution.result_mapper import map_execution
@@ -71,10 +72,14 @@ class N8nExecutionEngine:
         run_timeout_seconds: float = 60.0,
     ) -> None:
         self.client = client
-        # Keep n8n's own deadline just inside ours, so a runaway workflow is stopped by the
-        # engine that is running it rather than merely abandoned by the client waiting on it.
+        # Keep n8n's own deadline inside ours, so a runaway workflow is stopped by the engine
+        # running it rather than merely abandoned by the client waiting on it - but never
+        # stretch it to fill the client's patience, since a looping workflow spends the whole
+        # bound on every test in its suite.
         self.emitter = emitter or N8nEmitter(
-            execution_timeout_seconds=max(5, int(run_timeout_seconds) - 5)
+            execution_timeout_seconds=min(
+                DEFAULT_EXECUTION_TIMEOUT_SECONDS, max(5, int(run_timeout_seconds) - 5)
+            )
         )
         self.mocks = mocks
         self.propagate_failures = propagate_failures

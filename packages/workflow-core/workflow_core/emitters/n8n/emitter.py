@@ -31,7 +31,12 @@ from workflow_core.conditions import parse_condition
 from workflow_core.emitters.n8n.conditions import render_if_parameters
 from workflow_core.emitters.n8n.models import EdgeMap, EmittedWorkflow, NodeMap
 
-__all__ = ["INPUT_NODE_NAME", "N8nEmitter", "TRIGGER_NODE_NAME"]
+__all__ = [
+    "DEFAULT_EXECUTION_TIMEOUT_SECONDS",
+    "INPUT_NODE_NAME",
+    "N8nEmitter",
+    "TRIGGER_NODE_NAME",
+]
 
 #: The injected webhook. Synthetic, so it is excluded from `execution_order` and coverage.
 TRIGGER_NODE_NAME = "__wg_trigger__"
@@ -73,7 +78,10 @@ _APPROVAL_PASSTHROUGH = (
 )
 
 #: The analogue of the simulator's 250-step limit: a bound on how long one run may take.
-_DEFAULT_EXECUTION_TIMEOUT_SECONDS = 30
+#: Short, because every integration call in an emitted workflow is answered by a local mock -
+#: a workflow that has not finished in this long is looping, not working. A generous bound is
+#: not free: a cyclic workflow burns the whole of it on *every* test in its suite.
+DEFAULT_EXECUTION_TIMEOUT_SECONDS = 10
 
 _DEFAULT_REQUEST_TIMEOUT_MS = 2_000
 _MAX_REQUEST_TIMEOUT_MS = 30_000
@@ -86,7 +94,7 @@ class N8nEmitter:
         self,
         *,
         mock_base_url: str = "http://api:8000/mock",
-        execution_timeout_seconds: int = _DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+        execution_timeout_seconds: int = DEFAULT_EXECUTION_TIMEOUT_SECONDS,
     ) -> None:
         self.mock_base_url = mock_base_url.rstrip("/")
         self.execution_timeout_seconds = execution_timeout_seconds
@@ -279,7 +287,14 @@ class _Builder:
                 "parameters": {
                     "httpMethod": "POST",
                     "path": webhook_path,
-                    "responseMode": "lastNode",
+                    # Respond as soon as the request arrives, rather than when the last node
+                    # finishes. Nothing reads this response - the result comes from the
+                    # execution record - and waiting for the workflow made the trigger race its
+                    # own execution timeout: a long or cyclic run held the connection open until
+                    # the client gave up, reporting "engine unavailable" for a workflow that was
+                    # running perfectly well. It also removes the 500 that n8n returns when the
+                    # last node produced no item.
+                    "responseMode": "onReceived",
                 },
             }
         )
