@@ -228,6 +228,19 @@ class TestNodeBodies:
         assert any("auto-answered" in w for w in emitted.warnings)
 
     def test_unmodelled_node_bodies_warn_rather_than_pass_silently(self):
+        """A node nothing knows how to map must say so, not quietly become a no-op."""
+        workflow = _workflow(
+            nodes=[
+                Node(id="start", name="Start", type=NodeType.TRIGGER),
+                Node(id="act", name="Act", type=NodeType.ACTION, configuration={"mystery": 1}),
+            ],
+            edges=[Edge(id="e0", source="start", target="act")],
+        )
+        emitted = _emit(workflow)
+        assert any("'act'" in w and "pass-through" in w for w in emitted.warnings)
+
+    def test_a_mapped_node_still_declares_what_it_did_not_reproduce(self):
+        """Mapping is not the same as fidelity; an approximation has to remain visible."""
         workflow = _workflow(
             nodes=[
                 Node(id="start", name="Start", type=NodeType.TRIGGER),
@@ -236,7 +249,8 @@ class TestNodeBodies:
             edges=[Edge(id="e0", source="start", target="act")],
         )
         emitted = _emit(workflow)
-        assert any("'act'" in w and "pass-through" in w for w in emitted.warnings)
+        assert _node_named(emitted, "Act")["type"] == "n8n-nodes-base.set"
+        assert any("'act'" in w and "not how" in w for w in emitted.warnings)
 
     def test_canonical_retries_become_n8n_retries(self):
         workflow = _workflow(

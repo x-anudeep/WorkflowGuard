@@ -29,6 +29,8 @@ from workflow_core.analysis.failure_paths import is_failure_edge
 from workflow_core.canonical.models import Edge, Node, NodeType, Workflow
 from workflow_core.conditions import parse_condition
 from workflow_core.emitters.n8n.conditions import render_if_parameters
+from workflow_core.emitters.n8n.mapping import map_node
+from workflow_core.emitters.n8n.mapping.models import request_timeout_ms
 from workflow_core.emitters.n8n.models import EdgeMap, EmittedWorkflow, NodeMap
 
 __all__ = [
@@ -60,11 +62,12 @@ _SAFE_NAME = re.compile(r"[^A-Za-z0-9 _.\-]")
 _COLUMN_WIDTH = 220
 _ROW_HEIGHT = 140
 
-#: Request timeout for a redirected integration call, in milliseconds, when the canonical node
-#: does not declare one. Without a timeout an injected TIMEOUT failure cannot be *observed* as a
-#: timeout: the node simply hangs until the whole run gives up, so the node never fails, never
-#: retries, and the failure is reported against the run instead of against the node that caused
-#: it. Short by default because these calls never leave the machine.
+#: The analogue of the simulator's 250-step limit: a bound on how long one run may take.
+#: Short, because every integration call in an emitted workflow is answered by a local mock -
+#: a workflow that has not finished in this long is looping, not working. A generous bound is
+#: not free: a cyclic workflow burns the whole of it on *every* test in its suite.
+DEFAULT_EXECUTION_TIMEOUT_SECONDS = 10
+
 #: True when the item carries no error, false when it does - the `success`/`ok` contract the
 #: canonical condition language assumes after a call.
 _FAILED_FALSE = "={{ $json.error === undefined }}"
@@ -76,15 +79,6 @@ _APPROVAL_PASSTHROUGH = (
     "approved: $json.approved === undefined ? true : $json.approved, "
     "approval_requested: true }) }}"
 )
-
-#: The analogue of the simulator's 250-step limit: a bound on how long one run may take.
-#: Short, because every integration call in an emitted workflow is answered by a local mock -
-#: a workflow that has not finished in this long is looping, not working. A generous bound is
-#: not free: a cyclic workflow burns the whole of it on *every* test in its suite.
-DEFAULT_EXECUTION_TIMEOUT_SECONDS = 10
-
-_DEFAULT_REQUEST_TIMEOUT_MS = 2_000
-_MAX_REQUEST_TIMEOUT_MS = 30_000
 
 
 class N8nEmitter:
@@ -346,6 +340,18 @@ class _Builder:
         A condition node is handled by `_wire`, which turns it into the IF/Switch that owns its
         outputs; here it is a placeholder so that it still appears in `execution_order`.
         """
+        mapped = map_node(node, str(self.workflow.source_format), self._mock_url(node))
+        if mapped is not None:
+            if mapped.mocked:
+                self.mocked.add(node.id)
+            if mapped.warning:
+                self.warnings.append(mapped.warning)
+            return {
+                "type": mapped.type,
+                "typeVersion": mapped.type_version,
+                "parameters": dict(mapped.parameters),
+            }
+
         if node.type in _INTEGRATION_TYPES:
             self.mocked.add(node.id)
             return {
@@ -353,13 +359,13 @@ class _Builder:
                 "typeVersion": 4.2,
                 "parameters": {
                     "method": "POST",
-                    "url": f"{self.emitter.mock_base_url}/{self.run_token}/{node.id}",
+                    "url": self._mock_url(node),
                     "sendBody": True,
                     "specifyBody": "json",
                     "jsonBody": "={{ JSON.stringify($json) }}",
                     "options": {
                         "response": {"response": {"neverError": False}},
-                        "timeout": _request_timeout_ms(node),
+                        "timeout": request_timeout_ms(node),
                     },
                 },
             }
@@ -397,6 +403,10 @@ class _Builder:
             )
 
         return {"type": "n8n-nodes-base.noOp", "typeVersion": 1, "parameters": {}}
+
+    def _mock_url(self, node: Node) -> str:
+        """Where this node's outbound calls go. Never the address the workflow named."""
+        return f"{self.emitter.mock_base_url}/{self.run_token}/{node.id}"
 
     # -- wiring ------------------------------------------------------------------------
 
@@ -609,16 +619,6 @@ class _Builder:
         siblings = [n for n, d in sorted(self._depths.items()) if d == depth - offset]
         row = siblings.index(node_id) if node_id in siblings else 0
         return [(depth + 1) * _COLUMN_WIDTH, row * _ROW_HEIGHT]
-
-
-def _request_timeout_ms(node: Node) -> int:
-    """The node's declared timeout, or a short default, clamped to something survivable."""
-    declared = node.configuration.get("timeout_seconds") or node.configuration.get("timeout")
-    try:
-        milliseconds = int(float(declared) * 1000) if declared else _DEFAULT_REQUEST_TIMEOUT_MS
-    except (TypeError, ValueError):
-        milliseconds = _DEFAULT_REQUEST_TIMEOUT_MS
-    return max(250, min(milliseconds, _MAX_REQUEST_TIMEOUT_MS))
 
 
 def _branch_label(edge: Edge) -> str:
