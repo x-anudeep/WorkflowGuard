@@ -223,10 +223,14 @@ Workflow tests now execute for real, in n8n, and the containment moved with them
   A request's method, headers and body are reproduced faithfully so a report can show what the
   workflow *would* have sent; the destination it declared is recorded in the body and never
   used. Emitted workflows carry no credentials.
-- **Uploaded code is still never executed.** Qubi `Code`, `JsonParser` and `TextParser` nodes
-  and BPMN `scriptTask`s compile to pass-throughs that say what they skipped. Running them
-  would mean executing the contents of an uploaded file, and would depend on n8n's own sandbox
-  being enabled, which is not a safe assumption.
+- **Uploaded JavaScript is executed, under containment.** Skipping it did not make a run
+  incomplete so much as unreliable: a Branch downstream of a Code node that never ran takes an
+  arbitrary path, and the run then reports a confident verdict about something it never
+  evaluated. So Qubi `Code` nodes run, in an **external task runner** - a separate process from
+  n8n, on an `internal` Docker network with no route off the host, under a ten-second task
+  timeout and container CPU and memory limits. A snippet that hangs, crashes or allocates
+  takes the runner down, not the engine every other test is running in, and it cannot call out.
+  Python `Code` nodes and BPMN `scriptTask`s are still not executed, and say so on the run.
 - **A runaway workflow cannot exhaust the engine.** The simulator stopped at 250 steps; n8n has
   no step limit, so a cyclic workflow would run until it ran out of memory - an uploaded file
   denying service to the engine shared by every other run. Emitted workflows carry an

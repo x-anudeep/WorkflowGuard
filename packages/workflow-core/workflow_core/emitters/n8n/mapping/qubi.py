@@ -19,11 +19,16 @@ TextParser           3  regex extraction
 RPA                  1  an external automation; mocked
 ===============  =====  ==========================================================
 
-**Code nodes are deliberately not executed.** Compiling them to n8n's Code node would mean
-running uploaded code, which is a change to what WorkflowGuard is - it has never executed the
-contents of an uploaded file, only modelled it - rather than a fidelity improvement. It also
-depends on n8n's own sandbox being enabled, which is not a safe assumption. They compile to a
-pass-through that says what it skipped.
+**Code nodes are executed.** Skipping them did not make a run incomplete so much as unreliable:
+if a Code node computes a total and the next Branch tests it, not running the code means the
+branch takes an arbitrary path, and the run then reports a confident pass or fail about
+something it never evaluated. Across the 30 real exports these bodies are pure computation over
+their input - no `require`, `fetch`, `process` or `eval` anywhere - so running them buys real
+fidelity in the tests that matter most.
+
+Containment does not depend on that staying true. n8n executes the code in an external task
+runner, on a network that cannot reach anything but the mock endpoints, under a task timeout and
+container resource limits. See the Security Posture section of `docs/architecture.md`.
 """
 
 from __future__ import annotations
@@ -170,17 +175,80 @@ def _rpa(node: Node, mock_url: str) -> MappedNode:
 
 
 def _code(node: Node, _mock_url: str) -> MappedNode:
-    """Not executed. See the module docstring."""
-    language = str(node.configuration.get("language") or "code")
+    """Run the node's code, with the workflow's flat state bound as local variables.
+
+    Qubi snippets read workflow variables by bare name (`poRecord.amount`, `totalAmount`) and
+    return an object of new ones, while n8n's Code node exposes the item as `$json`. The body is
+    therefore wrapped: each key of the current item is bound as a local, and whatever the body
+    returns is merged back *over* the item rather than replacing it - canonical state accumulates
+    down the graph, so a node returning one field must not erase the rest.
+    """
+    config = node.configuration
+    code = str(config.get("code") or "").strip()
+    language = str(config.get("language") or "javascript").lower()
+
+    if not code:
+        return MappedNode(
+            type="n8n-nodes-base.noOp",
+            type_version=1,
+            warning=f"Node {node.id!r} is a code node with no code to run.",
+        )
+
+    if language.startswith("py"):
+        # n8n runs Python through Pyodide, which does not expose the same wrapping hooks.
+        # Emitting it unwrapped would leave the snippet's variables unbound and throw, which
+        # would read as a defect in the workflow rather than a limitation here.
+        return MappedNode(
+            type="n8n-nodes-base.noOp",
+            type_version=1,
+            warning=(
+                f"Node {node.id!r} runs Python; only JavaScript code nodes are executed, so the "
+                f"run covers the path through this node but not what it computes."
+            ),
+        )
+
     return MappedNode(
-        type="n8n-nodes-base.noOp",
-        type_version=1,
-        warning=(
-            f"Node {node.id!r} runs {language}; it was not executed. WorkflowGuard does not run "
-            f"code from an uploaded file, so the run exercises the path through this node but "
-            f"not what it computes."
-        ),
+        type="n8n-nodes-base.code",
+        type_version=2,
+        parameters={
+            "mode": "runOnceForEachItem",
+            "jsCode": _wrap_js(code, str(config.get("saveOutputAs") or "").strip()),
+        },
     )
+
+
+#: The wrapper around an uploaded snippet. `$wgBody` is the node's own code; it is invoked with
+#: the item's fields bound as named parameters so bare references resolve, and its result is
+#: merged back over the item. Errors are re-raised with the node's name attached so a failure
+#: reads as this node failing rather than as a fault in the wrapper.
+_JS_WRAPPER = """// WorkflowGuard: runs this node's code with the workflow's variables bound as locals.
+const $wgItem = $json ?? {};
+const $wgNames = Object.keys($wgItem);
+const $wgBody = __WG_BODY__;
+let $wgOut;
+try {
+  const $wgFn = new Function(...$wgNames, '"use strict";\\n' + $wgBody);
+  $wgOut = $wgFn(...$wgNames.map((name) => $wgItem[name]));
+} catch (error) {
+  throw new Error('Code node failed: ' + ((error && error.message) || error));
+}
+const $wgMerged = Object.assign(
+  {},
+  $wgItem,
+  $wgOut && typeof $wgOut === 'object' ? $wgOut : ($wgOut === undefined ? {} : { result: $wgOut })
+);
+__WG_SAVE__return { json: $wgMerged };
+"""
+
+
+def _wrap_js(code: str, save_as: str) -> str:
+    """Substitution rather than `format`, because the wrapper is full of JavaScript braces."""
+    save = (
+        f"if ($wgOut && typeof $wgOut === 'object') $wgMerged[{json.dumps(save_as)}] = $wgOut;\n"
+        if save_as
+        else ""
+    )
+    return _JS_WRAPPER.replace("__WG_BODY__", json.dumps(code)).replace("__WG_SAVE__", save)
 
 
 def _parser(node: Node, _mock_url: str) -> MappedNode:

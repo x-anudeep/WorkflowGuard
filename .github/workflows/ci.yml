@@ -49,6 +49,12 @@ jobs:
           # 7 GB RSS under a full differential run with a 4 GB ceiling -- old-space limits do not
           # cap buffers or external memory.
           NODE_OPTIONS: --max-old-space-size=2048
+          # Uploaded code executes here. A GitHub service container cannot express the external
+          # runner or the internal network that docker-compose uses, so CI runs the code in
+          # n8n's own process on a throwaway runner. Acceptable because the corpus is this
+          # repository's own fixtures; it is *not* the posture for a deployment that accepts
+          # uploads from anyone - see docker-compose.yml and docs/architecture.md.
+          N8N_RUNNERS_TASK_TIMEOUT: "10"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v7

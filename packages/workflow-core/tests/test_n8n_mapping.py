@@ -123,12 +123,49 @@ class TestTransforms:
         assert mapped.parameters["includeOtherFields"] is True
 
 
-class TestUploadedLogicIsNotExecuted:
-    """WorkflowGuard has never run the contents of an uploaded file, and still does not."""
+class TestCodeExecution:
+    """A Branch downstream of a Code node is only trustworthy if the code actually ran."""
 
-    @pytest.mark.parametrize("subtype", ["Code", "JsonParser", "TextParser"])
-    def test_qubi_logic_nodes_are_not_run(self, subtype):
-        mapped = map_node(_qubi(subtype, language="javascript", code="x"), SourceFormat.QUBI.value, MOCK)
+    def test_javascript_is_compiled_to_a_code_node(self):
+        node = _qubi("Code", language="javascript", code="return { total: 1 };")
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        assert mapped.type == "n8n-nodes-base.code"
+        assert "return { total: 1 };" in mapped.parameters["jsCode"]
+
+    def test_workflow_variables_are_bound_as_locals(self):
+        """Qubi snippets read variables by bare name; n8n exposes them only as `$json`."""
+        node = _qubi("Code", language="javascript", code="return { t: price * qty };")
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        assert "Object.keys($wgItem)" in mapped.parameters["jsCode"]
+
+    def test_the_result_is_merged_over_the_item_not_replacing_it(self):
+        """Canonical state accumulates; a node returning one field must not erase the rest."""
+        node = _qubi("Code", language="javascript", code="return { t: 1 };")
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        assert "Object.assign(" in mapped.parameters["jsCode"]
+
+    def test_save_output_as_names_the_result(self):
+        node = _qubi("Code", language="javascript", code="return { t: 1 };", saveOutputAs="calc")
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        assert '"calc"' in mapped.parameters["jsCode"]
+
+    def test_an_empty_code_node_is_not_run(self):
+        mapped = map_node(_qubi("Code", language="javascript", code="  "), SourceFormat.QUBI.value, MOCK)
+        assert mapped.type == "n8n-nodes-base.noOp"
+
+    def test_python_is_not_executed_and_says_so(self):
+        """n8n runs Python through Pyodide, which does not offer the same variable binding."""
+        mapped = map_node(_qubi("Code", language="python", code="x=1"), SourceFormat.QUBI.value, MOCK)
+        assert mapped.type == "n8n-nodes-base.noOp"
+        assert "Python" in mapped.warning
+
+
+class TestUploadedLogicIsNotExecuted:
+    """What remains unexecuted still has to say so rather than pass silently."""
+
+    @pytest.mark.parametrize("subtype", ["JsonParser", "TextParser"])
+    def test_qubi_parser_nodes_are_not_run(self, subtype):
+        mapped = map_node(_qubi(subtype), SourceFormat.QUBI.value, MOCK)
         assert mapped.type == "n8n-nodes-base.noOp"
         assert mapped.warning
 

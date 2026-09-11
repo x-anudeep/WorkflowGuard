@@ -10,11 +10,13 @@ Tests execute in a real n8n instance. The workflow is compiled to an n8n workflo
 once, and triggered per test; the execution is then read back and translated into canonical node
 and edge ids, so assertions and coverage mean exactly what they always did.
 
-That is a real engine running a real workflow, with two things deliberately withheld: an
-integration call never reaches its declared destination - it is redirected to WorkflowGuard's
-own mock endpoints, which serve the test's `mocked_integrations` and turn its
-`failure_injections` into genuine 429s, 500s, timeouts and malformed responses - and uploaded
-code is not executed. See the Security Posture section of `docs/architecture.md`.
+That is a real engine running a real workflow, including the JavaScript inside its Code nodes,
+which is what makes a Branch downstream of a computation trustworthy rather than arbitrary. One
+thing is deliberately withheld: an integration call never reaches its declared destination. It
+is redirected to WorkflowGuard's own mock endpoints, which serve the test's
+`mocked_integrations` and turn its `failure_injections` into genuine 429s, 500s, timeouts and
+malformed responses. See the Security Posture section of `docs/architecture.md` for how code
+execution is contained.
 
 Because failures are real rather than modelled, a workflow that declares retries genuinely
 retries: a single injected timeout against a node configured to retry is survived, and the run

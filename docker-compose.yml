@@ -18,9 +18,37 @@ services:
   # The execution engine. Workflow tests are compiled to n8n workflows and really run here;
   # their integration calls are redirected back at the API's /mock endpoints, so an emitted
   # workflow carries no credentials and cannot reach a real service.
+  # Executes the code inside uploaded workflows, in its own process and on a network that
+  # cannot reach anything but this stack. Separate from n8n so a snippet that hangs, crashes or
+  # eats memory takes the runner down rather than the engine every other test is running in.
+  n8n-runner:
+    image: n8nio/runners:2.38.7
+    environment:
+      N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN:-workflowguard-local-runner}
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n:5679
+      # A snippet gets ten seconds, matching the bound on a whole run.
+      N8N_RUNNERS_TASK_TIMEOUT: "10"
+      N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "256"
+      N8N_RUNNERS_MAX_CONCURRENCY: "2"
+    depends_on:
+      n8n:
+        condition: service_healthy
+    networks: [sandbox]
+    # Uploaded code cannot starve the host even if it tries.
+    mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
+
   n8n:
     image: n8nio/n8n:2.38.7
+    networks: [sandbox]
     environment:
+      # Code runs in the external runner above, never in this process.
+      N8N_RUNNERS_MODE: external
+      N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN:-workflowguard-local-runner}
+      N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
+      N8N_RUNNERS_BROKER_PORT: "5679"
+      N8N_RUNNERS_TASK_TIMEOUT: "10"
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-workflowguard-local}
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_SECURE_COOKIE: "false"
@@ -51,6 +79,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+    networks: [sandbox, default]
     environment:
       WORKFLOWGUARD_DATABASE_URL: postgresql+psycopg://workflowguard:workflowguard@db:5432/workflowguard
       WORKFLOWGUARD_CORS_ORIGINS: '["http://localhost:${WEB_PORT:-3000}","http://127.0.0.1:${WEB_PORT:-3000}"]'
@@ -89,6 +118,17 @@ services:
     volumes:
       - ./apps/web:/app/apps/web
     command: sh -c "rm -rf /app/apps/web/.next && npm --workspace apps/web run dev"
+
+networks:
+  # No route off the host. n8n and the runner can reach the API's /mock endpoints and each
+  # other, and nothing else - so a redirected integration call cannot escape even if the URL
+  # rewriting were ever bypassed, and uploaded code cannot call out.
+  #
+  # Publishing n8n's editor port below is a convenience for local development. A deployment that
+  # wants the egress guarantee intact should drop that port mapping and reach the editor another
+  # way; a published port is a route in, and n8n is then reachable from outside this network.
+  sandbox:
+    internal: true
 
 volumes:
   workflowguard_pg:
