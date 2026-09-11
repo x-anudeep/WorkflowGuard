@@ -138,6 +138,16 @@ class N8nClient:
                 return execution
             time.sleep(self.poll_interval_seconds)
 
+    def delete_execution(self, execution_id: str) -> None:
+        """Drop an execution once its result has been mapped.
+
+        n8n stores every execution with its full data. We copy what we need into a
+        `SimulationResult`, which is persisted in WorkflowGuard's own database, so n8n's copy is
+        redundant the moment it has been read - and a test suite produces hundreds of them.
+        Retention settings bound this eventually; deleting as we go bounds it immediately.
+        """
+        self._request("DELETE", f"/api/v1/executions/{execution_id}", tolerate_failure=True)
+
     def latest_execution(self, workflow_id: str) -> dict[str, Any] | None:
         body = self._request(
             "GET",

@@ -49,6 +49,16 @@ class FuzzService:
         self.audit = AuditService(db)
         self.ai_provider = ai_provider
 
+    def _release_engine(self) -> None:
+        """End the life of the workflows this campaign published.
+
+        The engine publishes once and reuses across a campaign's cases, so it owns those
+        workflows until released; one left published keeps its webhook path claimed.
+        """
+        release = getattr(self.engine.engine, "release", None)
+        if callable(release):
+            release()
+
     def run_campaign(
         self,
         workflow_id: uuid.UUID,
@@ -73,17 +83,20 @@ class FuzzService:
         cases, generated_by, provider_name, model_name, ai_metadata = self._build_cases(
             workflow, requirement_spec, use_ai=use_ai, seed=seed, max_cases=max_cases
         )
-        report = self.engine.run(
-            workflow,
-            cases,
-            requirement_spec=requirement_spec,
-            seed=seed,
-            max_cases=max_cases,
-            generated_by=generated_by,
-            ai_provider=provider_name,
-            ai_model=model_name,
-            ai_metadata=ai_metadata,
-        )
+        try:
+            report = self.engine.run(
+                workflow,
+                cases,
+                requirement_spec=requirement_spec,
+                seed=seed,
+                max_cases=max_cases,
+                generated_by=generated_by,
+                ai_provider=provider_name,
+                ai_model=model_name,
+                ai_metadata=ai_metadata,
+            )
+        finally:
+            self._release_engine()
         return self._persist(record.id, version.id, report)
 
     def latest_run(self, workflow_id: uuid.UUID, version_id: uuid.UUID | None = None) -> FuzzRunRecord | None:

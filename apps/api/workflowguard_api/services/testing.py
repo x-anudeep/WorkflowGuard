@@ -163,16 +163,22 @@ class WorkflowTestingService:
         prior_runs: list[WorkflowTestRun] = []
         records = []
         core_tests = [self._record_to_test(test) for test in tests]
-        for test_record, core_test in zip(tests, core_tests, strict=True):
-            run = self.runner.run(
-                workflow,
-                core_test,
-                all_tests=core_tests,
-                prior_runs=prior_runs,
-                requirement_spec=requirement_spec,
-            )
-            prior_runs.append(run)
-            records.append(self._persist_run(record.id, version.id, test_record.id, run))
+        try:
+            for test_record, core_test in zip(tests, core_tests, strict=True):
+                run = self.runner.run(
+                    workflow,
+                    core_test,
+                    all_tests=core_tests,
+                    prior_runs=prior_runs,
+                    requirement_spec=requirement_spec,
+                )
+                prior_runs.append(run)
+                records.append(self._persist_run(record.id, version.id, test_record.id, run))
+        finally:
+            # The engine publishes a workflow once and reuses it across this suite, so it owns
+            # that workflow until released. Leaving it published keeps its webhook path claimed
+            # and the next run that wants the path gets a 409.
+            self._release_engine()
         self.db.commit()
         return self.list_runs(workflow_id, limit=len(records) or 100)
 
@@ -220,6 +226,11 @@ class WorkflowTestingService:
             "latest_test_coverage": round(latest_coverage, 2),
             "failing_test_runs": int(failing_runs),
         }
+
+    def _release_engine(self) -> None:
+        release = getattr(self.runner.engine, "release", None)
+        if callable(release):
+            release()
 
     def _workflow_context(self, workflow_id: uuid.UUID):
         record = self.workflow_service.get_workflow(workflow_id)

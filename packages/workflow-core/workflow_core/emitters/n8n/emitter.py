@@ -72,6 +72,9 @@ _APPROVAL_PASSTHROUGH = (
     "approval_requested: true }) }}"
 )
 
+#: The analogue of the simulator's 250-step limit: a bound on how long one run may take.
+_DEFAULT_EXECUTION_TIMEOUT_SECONDS = 30
+
 _DEFAULT_REQUEST_TIMEOUT_MS = 2_000
 _MAX_REQUEST_TIMEOUT_MS = 30_000
 
@@ -79,8 +82,14 @@ _MAX_REQUEST_TIMEOUT_MS = 30_000
 class N8nEmitter:
     """Canonical workflow -> n8n workflow JSON, plus the maps to read its execution back."""
 
-    def __init__(self, *, mock_base_url: str = "http://api:8000/mock") -> None:
+    def __init__(
+        self,
+        *,
+        mock_base_url: str = "http://api:8000/mock",
+        execution_timeout_seconds: int = _DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+    ) -> None:
         self.mock_base_url = mock_base_url.rstrip("/")
+        self.execution_timeout_seconds = execution_timeout_seconds
 
     def emit(
         self,
@@ -150,7 +159,16 @@ class _Builder:
                 "name": f"wg-{self.run_token}-{_safe(self.workflow.name)}"[:120],
                 "nodes": self.nodes,
                 "connections": self.connections,
-                "settings": {"executionOrder": "v1"},
+                "settings": {
+                    "executionOrder": "v1",
+                    # The simulator stopped a run at 250 steps. n8n has no step limit, so a
+                    # cyclic workflow - and `examples/*/cycle.*` are exactly that - executes
+                    # without bound until the engine runs out of memory and takes every other
+                    # in-flight run down with it. An uploaded file must not be able to do that,
+                    # so every emitted workflow carries its own deadline.
+                    "executionTimeout": self.emitter.execution_timeout_seconds,
+                    "saveExecutionProgress": False,
+                },
             },
             nodes=self.node_map,
             edges=self.edge_map,

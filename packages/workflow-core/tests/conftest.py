@@ -79,12 +79,18 @@ def _engine(mock_server, *, propagate_failures: bool) -> N8nExecutionEngine:
 
 
 @pytest.fixture()
-def engine(mock_server) -> N8nExecutionEngine:
-    """Strict engine, as stored test runs use."""
-    return _engine(mock_server, propagate_failures=False)
+def engine(mock_server):
+    """Strict engine, as stored test runs use.
+
+    Released at the end of the test: the engine publishes a workflow once and reuses it, so it
+    owns that workflow until told otherwise.
+    """
+    with _engine(mock_server, propagate_failures=False) as built:
+        yield built
 
 
 @pytest.fixture()
-def fuzz_engine(mock_server) -> N8nExecutionEngine:
+def fuzz_engine(mock_server):
     """Propagating engine: fuzzing measures behaviour past the point of failure."""
-    return _engine(mock_server, propagate_failures=True)
+    with _engine(mock_server, propagate_failures=True) as built:
+        yield built
