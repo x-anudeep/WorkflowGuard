@@ -230,7 +230,7 @@ class _Builder:
         marker_name = self._claim_literal(f"{name} Result")
         self.nodes.append(
             {
-                "id": _uuid_like(f"{canonical_id}:markers"),
+                "id": _uuid_like(marker_name),
                 "name": marker_name,
                 "type": "n8n-nodes-base.set",
                 "typeVersion": 3.4,
@@ -279,7 +279,7 @@ class _Builder:
     def _add_trigger(self, webhook_path: str) -> None:
         self.nodes.append(
             {
-                "id": _uuid_like("trigger"),
+                "id": _uuid_like(TRIGGER_NODE_NAME),
                 "name": TRIGGER_NODE_NAME,
                 "type": "n8n-nodes-base.webhook",
                 "typeVersion": 2,
@@ -302,7 +302,7 @@ class _Builder:
 
         self.nodes.append(
             {
-                "id": _uuid_like("input"),
+                "id": _uuid_like(INPUT_NODE_NAME),
                 "name": INPUT_NODE_NAME,
                 "type": "n8n-nodes-base.set",
                 "typeVersion": 3.4,
@@ -324,7 +324,7 @@ class _Builder:
 
         spec = self._node_spec(node)
         emitted: dict[str, Any] = {
-            "id": _uuid_like(node.id),
+            "id": _uuid_like(name),
             "name": name,
             "type": spec["type"],
             "typeVersion": spec["typeVersion"],
@@ -480,7 +480,7 @@ class _Builder:
             router_name = self._claim_literal(f"{name} Router")
             self.nodes.append(
                 {
-                    "id": _uuid_like(f"{canonical_id}:router"),
+                    "id": _uuid_like(router_name),
                     "name": router_name,
                     "type": "n8n-nodes-base.noOp",
                     "typeVersion": 1,
@@ -639,10 +639,15 @@ def _safe(text: str) -> str:
 
 
 def _uuid_like(seed: str) -> str:
-    """A stable pseudo-UUID from the canonical id, so emission is deterministic.
+    """A stable pseudo-UUID from the n8n node name, so emission is deterministic.
 
-    Golden-file tests depend on this: a random uuid4 per node would make every emitted
+    Golden-file tests depend on the stability: a random uuid4 per node would make every emitted
     workflow differ from the last for no reason.
+
+    Seeded from the *name* rather than the canonical id because n8n rejects a workflow with
+    duplicate node ids, and names are already uniquified while canonical ids are not
+    necessarily distinct from the synthetic nodes' seeds - a workflow whose own trigger node is
+    called `trigger` collided with the injected webhook and the whole workflow was refused.
     """
     digest = hashlib.sha1(seed.encode(), usedforsecurity=False).hexdigest()
     return f"{digest[:8]}-{digest[8:12]}-4{digest[13:16]}-8{digest[17:20]}-{digest[20:32]}"

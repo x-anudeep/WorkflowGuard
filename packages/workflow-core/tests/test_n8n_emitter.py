@@ -287,6 +287,23 @@ class TestSafety:
         assert len(names) == len(set(names))
         assert emitted.nodes.canonical_to_n8n["a"] != emitted.nodes.canonical_to_n8n["b"]
 
+    def test_node_ids_are_unique_including_against_synthetic_nodes(self):
+        """n8n refuses a whole workflow with duplicate node ids.
+
+        A workflow whose own node is called `trigger` used to collide with the injected
+        webhook, and every test for it failed as an engine error rather than a result.
+        """
+        workflow = _workflow(
+            nodes=[
+                Node(id="trigger", name="Manual Trigger", type=NodeType.TRIGGER),
+                Node(id="input", name="Input Step", type=NodeType.ACTION),
+            ],
+            edges=[Edge(id="e0", source="trigger", target="input")],
+        )
+        emitted = _emit(workflow)
+        ids = [node["id"] for node in emitted.workflow_json["nodes"]]
+        assert len(ids) == len(set(ids)), ids
+
     def test_webhook_path_is_namespaced_by_run_token(self):
         """n8n returns 409 on publish when two workflows claim the same path."""
         emitted = _emit(_branching())
