@@ -8,7 +8,7 @@ subtype          count  what it needs
 ===============  =====  ==========================================================
 Http               130  method, url, headers, body - the bulk of all fidelity
 Branch              46  handled by the emitter's router, not here
-Code                35  **not executed** - see the note below
+Code                35  executed, with its declared `input` mapping bound
 Start / End         60  structural
 Agent               26  an LLM call; mocked, never sent to a real provider
 HitlTask            25  the emitter's approval shim
@@ -34,6 +34,7 @@ container resource limits. See the Security Posture section of `docs/architectur
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from workflow_core.canonical.models import Node
@@ -212,7 +213,9 @@ def _code(node: Node, _mock_url: str) -> MappedNode:
         type_version=2,
         parameters={
             "mode": "runOnceForEachItem",
-            "jsCode": _wrap_js(code, str(config.get("saveOutputAs") or "").strip()),
+            "jsCode": _wrap_js(
+                code, str(config.get("saveOutputAs") or "").strip(), config.get("input")
+            ),
         },
     )
 
@@ -223,12 +226,26 @@ def _code(node: Node, _mock_url: str) -> MappedNode:
 #: reads as this node failing rather than as a fault in the wrapper.
 _JS_WRAPPER = """// WorkflowGuard: runs this node's code with the workflow's variables bound as locals.
 const $wgItem = $json ?? {};
-const $wgNames = Object.keys($wgItem);
+// The node's declared `input` mapping: qubi snippets read these both as `input.x` and as a
+// bare `x`, so both are provided.
+// A node that declares no mapping still reads `input.something`; there, `input` means the
+// state that reached the node. Binding an empty object instead made every such read undefined,
+// which is worse than useless: the code still runs, silently computes a wrong answer, and the
+// branch that tests it takes the wrong path with nothing reported.
+const $wgHasMapping = Object.keys(__WG_INPUT_VARS__).length > 0
+  || Object.keys(__WG_INPUT_LITERALS__).length > 0;
+const $wgInput = $wgHasMapping ? {} : Object.assign({}, $wgItem);
+for (const [$wgKey, $wgVar] of Object.entries(__WG_INPUT_VARS__)) $wgInput[$wgKey] = $wgItem[$wgVar];
+Object.assign($wgInput, __WG_INPUT_LITERALS__);
+const $wgScope = Object.assign({}, $wgItem, $wgInput, { input: $wgInput });
+// Only names that are valid identifiers can be function parameters; a state key like
+// "content-type" would otherwise make the whole wrapper a syntax error.
+const $wgNames = Object.keys($wgScope).filter((name) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name));
 const $wgBody = __WG_BODY__;
 let $wgOut;
 try {
   const $wgFn = new Function(...$wgNames, '"use strict";\\n' + $wgBody);
-  $wgOut = $wgFn(...$wgNames.map((name) => $wgItem[name]));
+  $wgOut = $wgFn(...$wgNames.map((name) => $wgScope[name]));
 } catch (error) {
   throw new Error('Code node failed: ' + ((error && error.message) || error));
 }
@@ -240,15 +257,45 @@ const $wgMerged = Object.assign(
 __WG_SAVE__return { json: $wgMerged };
 """
 
+#: `{{ someVariable }}` - the whole value is one template referencing a workflow variable.
+_TEMPLATE_ONLY = re.compile(r"^\s*\{\{\s*([A-Za-z_$][\w$.]*)\s*\}\}\s*$")
 
-def _wrap_js(code: str, save_as: str) -> str:
+
+def _input_bindings(raw: Any) -> tuple[dict[str, str], dict[str, Any]]:
+    """Split a node's `input` mapping into variable references and plain literals.
+
+    Qubi declares `{"poRecord": "{{poRecord}}"}`, meaning "expose the workflow variable
+    `poRecord` under the name `poRecord`". Anything that is not a bare template is passed
+    through as a constant.
+    """
+    variables: dict[str, str] = {}
+    literals: dict[str, Any] = {}
+    if not isinstance(raw, dict):
+        return variables, literals
+    for key, value in raw.items():
+        match = _TEMPLATE_ONLY.match(value) if isinstance(value, str) else None
+        if match:
+            # Flat state: a dotted reference resolves by its last segment, as everywhere else.
+            variables[str(key)] = match.group(1).rsplit(".", 1)[-1]
+        else:
+            literals[str(key)] = value
+    return variables, literals
+
+
+def _wrap_js(code: str, save_as: str, raw_input: Any = None) -> str:
     """Substitution rather than `format`, because the wrapper is full of JavaScript braces."""
+    variables, literals = _input_bindings(raw_input)
     save = (
         f"if ($wgOut && typeof $wgOut === 'object') $wgMerged[{json.dumps(save_as)}] = $wgOut;\n"
         if save_as
         else ""
     )
-    return _JS_WRAPPER.replace("__WG_BODY__", json.dumps(code)).replace("__WG_SAVE__", save)
+    return (
+        _JS_WRAPPER.replace("__WG_INPUT_VARS__", json.dumps(variables))
+        .replace("__WG_INPUT_LITERALS__", json.dumps(literals))
+        .replace("__WG_BODY__", json.dumps(code))
+        .replace("__WG_SAVE__", save)
+    )
 
 
 def _parser(node: Node, _mock_url: str) -> MappedNode:

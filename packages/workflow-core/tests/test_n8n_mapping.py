@@ -136,7 +136,7 @@ class TestCodeExecution:
         """Qubi snippets read variables by bare name; n8n exposes them only as `$json`."""
         node = _qubi("Code", language="javascript", code="return { t: price * qty };")
         mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
-        assert "Object.keys($wgItem)" in mapped.parameters["jsCode"]
+        assert "Object.keys($wgScope)" in mapped.parameters["jsCode"]
 
     def test_the_result_is_merged_over_the_item_not_replacing_it(self):
         """Canonical state accumulates; a node returning one field must not erase the rest."""
@@ -152,6 +152,55 @@ class TestCodeExecution:
     def test_an_empty_code_node_is_not_run(self):
         mapped = map_node(_qubi("Code", language="javascript", code="  "), SourceFormat.QUBI.value, MOCK)
         assert mapped.type == "n8n-nodes-base.noOp"
+
+    def test_the_declared_input_mapping_is_bound(self):
+        """Found by live-testing a real workflow: snippets read `input.x`, not just bare `x`.
+
+        A qubi Code node declares `input: {"poRecord": "{{poRecord}}"}` and its body uses both
+        forms. Binding only the bare names left `input` undefined, so every test of that
+        workflow failed with "input is not defined" - including the happy path.
+        """
+        node = _qubi(
+            "Code",
+            language="javascript",
+            input={"poRecord": "{{poRecord}}", "totalAmount": "{{totalAmount}}"},
+            code="return { ok: input.poRecord.amount === totalAmount };",
+        )
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        code = mapped.parameters["jsCode"]
+        assert '"poRecord": "poRecord"' in code
+        assert "input: $wgInput" in code
+
+    def test_a_dotted_input_reference_resolves_by_its_last_segment(self):
+        """Flat state, as everywhere else in the canonical model."""
+        node = _qubi(
+            "Code", language="javascript", input={"amount": "{{invoice.amount}}"}, code="return {};"
+        )
+        code = map_node(node, SourceFormat.QUBI.value, MOCK).parameters["jsCode"]
+        assert '"amount": "amount"' in code
+
+    def test_a_non_template_input_value_is_passed_through_as_a_constant(self):
+        node = _qubi("Code", language="javascript", input={"limit": 50}, code="return {};")
+        code = map_node(node, SourceFormat.QUBI.value, MOCK).parameters["jsCode"]
+        assert '{"limit": 50}' in code
+
+    def test_state_keys_that_are_not_identifiers_cannot_break_the_wrapper(self):
+        """A key like `content-type` as a function parameter would be a syntax error."""
+        node = _qubi("Code", language="javascript", code="return {};")
+        code = map_node(node, SourceFormat.QUBI.value, MOCK).parameters["jsCode"]
+        assert "A-Za-z_$" in code
+
+    def test_input_falls_back_to_the_whole_state_when_no_mapping_is_declared(self):
+        """Found by live-testing: `return { isHigh: input.price > 100 }` with no mapping.
+
+        Binding an empty object makes every `input.x` read undefined, which is worse than
+        failing: the code still runs, computes a confidently wrong answer, and the branch that
+        tests it takes the wrong path with nothing reported.
+        """
+        node = _qubi("Code", language="javascript", code="return { ok: input.price > 100 };")
+        code = map_node(node, SourceFormat.QUBI.value, MOCK).parameters["jsCode"]
+        assert "$wgHasMapping" in code
+        assert "Object.assign({}, $wgItem)" in code
 
     def test_python_is_not_executed_and_says_so(self):
         """n8n runs Python through Pyodide, which does not offer the same variable binding."""
