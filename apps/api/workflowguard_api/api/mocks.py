@@ -15,8 +15,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse, PlainTextResponse
-
-from workflowguard_api.services.mock_registry import mock_registry
+from workflow_core.execution.mocks import mock_registry
 
 router = APIRouter(tags=["mocks"])
 

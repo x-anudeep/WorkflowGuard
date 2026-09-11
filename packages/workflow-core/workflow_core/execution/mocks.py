@@ -13,10 +13,15 @@ can only come from here:
   failing node still produces exactly one ``taskData`` entry (verified against n8n 2.38.7).
   The mock, however, is hit once per attempt, so hits-minus-one is the retry count.
 
-State is in-process and deliberately so: n8n calls back into this same API. That makes the
-registry **incompatible with more than one worker process** - a run opened in worker A is
-invisible to worker B. Guarded by ``MockRegistry.close`` in a finally, plus an age-based sweep,
-so a crashed run cannot leak entries forever.
+State is in-process and deliberately so: n8n calls back into whatever process serves these
+endpoints. That makes the registry **incompatible with more than one worker process** - a run
+opened in worker A is invisible to worker B. Guarded by ``MockRegistry.close`` in a finally,
+plus an age-based sweep, so a crashed run cannot leak entries forever.
+
+It lives here rather than in the API because it is execution-layer state, not transport: the
+engine opens and closes runs against it directly, and the FastAPI router in
+``workflowguard_api.api.mocks`` is only the HTTP surface over it. Keeping it here is also what
+lets an integration harness serve the same registry the engine is writing to.
 """
 
 from __future__ import annotations
@@ -52,6 +57,11 @@ _FAILURE_MESSAGE = {
 #: A run left open this long is assumed abandoned. Generous, because an execution may legitimately
 #: sit at a slow node, but bounded so a crash cannot leak entries for the life of the process.
 _MAX_RUN_AGE_SECONDS = 3600.0
+
+#: How long a TIMEOUT injection stalls for. It only has to outlast the caller's own request
+#: timeout - the emitter gives redirected calls a short one - so this is bounded rather than
+#: arbitrarily long: every retry of a timing-out node waits this out.
+_TIMEOUT_DELAY_SECONDS = 10.0
 
 
 @dataclass
@@ -187,7 +197,7 @@ def _build_response(injection: FailureInjection | None, mock: MockIntegration | 
             return MockResponse(
                 status_code=504,
                 body={"error": _FAILURE_MESSAGE[failure_type]},
-                delay_seconds=float(injection.metadata.get("delay_seconds") or 30.0),
+                delay_seconds=float(injection.metadata.get("delay_seconds") or _TIMEOUT_DELAY_SECONDS),
             )
         if failure_type == FailureType.MALFORMED_OUTPUT:
             return MockResponse(status_code=200, body=None, raw_text="{not valid json,,,")

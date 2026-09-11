@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from workflow_core.emitters.n8n import N8nEmitter
 from workflow_core.execution import N8nClient, N8nExecutionEngine
+from workflow_core.execution.mocks import mock_registry
 
 from workflowguard_api.core.config import Settings, get_settings
-from workflowguard_api.services.mock_registry import mock_registry
 
 
 def build_engine(

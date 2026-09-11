@@ -110,6 +110,19 @@ class EmittedWorkflow(BaseModel):
     mocked_nodes: set[str] = Field(default_factory=set)
     error_output_index: dict[str, int] = Field(default_factory=dict)
 
+    #: Canonical ids compiled with `onError: continueRegularOutput` - the failure-propagating
+    #: mode the fuzzer needs. These nodes swallow their error and carry it *down the normal
+    #: output*, so there is no `taskData.error` and no error output to look at. The mapper has
+    #: to inspect their ordinary output for an error payload instead, or a workflow that
+    #: silently swallows every failure reads as one that never failed - which is exactly the
+    #: defect the fuzzer is looking for.
+    swallowing_nodes: set[str] = Field(default_factory=set)
+
+    #: Canonical ids with no outgoing edge. A failure in one of these has nowhere to go, which
+    #: is an unhandled crash however the engine reports the run - n8n happily completes a
+    #: workflow whose last node threw while carrying on.
+    terminal_nodes: set[str] = Field(default_factory=set)
+
     #: The webhook path this workflow listens on. Unique per run: n8n returns 409 on publish
     #: when two workflows claim the same path.
     webhook_path: str = ""

@@ -12,14 +12,13 @@ import json
 import time
 
 import pytest
+from workflow_core.execution.mocks import MockRegistry, mock_registry
 from workflow_core.testing.models import (
     FailureInjection,
     FailureType,
     MockIntegration,
     WorkflowTest,
 )
-
-from workflowguard_api.services.mock_registry import MockRegistry, mock_registry
 
 
 def _test(mocks=None, failures=None) -> WorkflowTest:
@@ -74,12 +73,17 @@ class TestFailureInjection:
         assert registry.respond("run1", "api", {}).status_code == expected_status
 
     def test_timeout_actually_waits(self, registry):
-        """A timeout only tests timeout handling if the caller has to wait for it."""
+        """A timeout only tests timeout handling if the caller has to wait for it.
+
+        It only has to outlast the caller's own request timeout, which the emitter keeps short
+        for these redirected calls, so the stall is bounded - every retry waits it out.
+        """
         registry.open(
             "run1",
             _test(failures=[FailureInjection(node_id="api", failure_type=FailureType.TIMEOUT)]),
         )
-        assert registry.respond("run1", "api", {}).delay_seconds >= 30.0
+        delay = registry.respond("run1", "api", {}).delay_seconds
+        assert delay >= 5.0
 
     def test_timeout_delay_is_configurable(self, registry):
         registry.open(

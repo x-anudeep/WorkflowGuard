@@ -55,6 +55,18 @@ _SAFE_NAME = re.compile(r"[^A-Za-z0-9 _.\-]")
 _COLUMN_WIDTH = 220
 _ROW_HEIGHT = 140
 
+#: Request timeout for a redirected integration call, in milliseconds, when the canonical node
+#: does not declare one. Without a timeout an injected TIMEOUT failure cannot be *observed* as a
+#: timeout: the node simply hangs until the whole run gives up, so the node never fails, never
+#: retries, and the failure is reported against the run instead of against the node that caused
+#: it. Short by default because these calls never leave the machine.
+#: True when the item carries no error, false when it does - the `success`/`ok` contract the
+#: canonical condition language assumes after a call.
+_FAILED_FALSE = "={{ $json.error === undefined }}"
+
+_DEFAULT_REQUEST_TIMEOUT_MS = 2_000
+_MAX_REQUEST_TIMEOUT_MS = 30_000
+
 
 class N8nEmitter:
     """Canonical workflow -> n8n workflow JSON, plus the maps to read its execution back."""
@@ -102,6 +114,7 @@ class _Builder:
         self.warnings: list[str] = []
         self.mocked: set[str] = set()
         self.error_output: dict[str, int] = {}
+        self.swallowing: set[str] = set()
 
         self._used_names: set[str] = {TRIGGER_NODE_NAME, INPUT_NODE_NAME}
         self._outgoing: dict[str, list[Edge]] = defaultdict(list)
@@ -136,6 +149,10 @@ class _Builder:
             warnings=self.warnings,
             mocked_nodes=self.mocked,
             error_output_index=self.error_output,
+            swallowing_nodes=self.swallowing,
+            terminal_nodes={
+                node.id for node in self.workflow.nodes if not self._outgoing.get(node.id)
+            },
             webhook_path=webhook_path,
         )
 
@@ -156,6 +173,70 @@ class _Builder:
             if emitted["name"] in {TRIGGER_NODE_NAME, INPUT_NODE_NAME}:
                 continue
             emitted["onError"] = "continueRegularOutput"
+            self.swallowing.add(node_id)
+            self._insert_failure_markers(node_id, name)
+
+    def _insert_failure_markers(self, canonical_id: str, name: str) -> None:
+        """Make a swallowed failure visible to the conditions downstream of it.
+
+        This is the commonest real shape in a workflow: the call runs, and the *next* node
+        inspects the result - `payResult.success == false`. n8n's carried-on error item holds
+        only `error`, so such a condition would never fire and a workflow that does check its
+        results would be scored as though it ignored them.
+
+        A Set node after the failing node restores the fields the canonical condition language
+        expects. It is synthetic, so it never appears in `execution_order`.
+        """
+        existing = self.connections.get(name, {}).get("main") or []
+        if not existing or not existing[0]:
+            return  # nothing downstream to inform
+
+        marker_name = self._claim_literal(f"{name} Result")
+        self.nodes.append(
+            {
+                "id": _uuid_like(f"{canonical_id}:markers"),
+                "name": marker_name,
+                "type": "n8n-nodes-base.set",
+                "typeVersion": 3.4,
+                "position": self._position(canonical_id, offset=1),
+                "parameters": {
+                    "assignments": {
+                        "assignments": [
+                            {"id": "ok", "name": "ok", "type": "boolean", "value": _FAILED_FALSE},
+                            {"id": "success", "name": "success", "type": "boolean", "value": _FAILED_FALSE},
+                            {
+                                "id": "status",
+                                "name": "status",
+                                "type": "string",
+                                "value": "={{ $json.error === undefined ? 'ok' : 'failed' }}",
+                            },
+                            {
+                                "id": "statusCode",
+                                "name": "statusCode",
+                                "type": "number",
+                                "value": "={{ $json.error === undefined ? 200 : 500 }}",
+                            },
+                        ]
+                    },
+                    "includeOtherFields": True,
+                    "options": {},
+                },
+            }
+        )
+        self.node_map.synthetic.add(marker_name)
+        self.node_map.routers[marker_name] = canonical_id
+
+        # Re-seat output 0: the failing node now feeds the marker, and the marker feeds whatever
+        # the node used to. The EdgeMap has to follow, or every edge leaving this node stops
+        # resolving and its coverage silently disappears.
+        downstream = existing[0]
+        existing[0] = [{"node": marker_name, "type": "main", "index": 0}]
+        self.connections.setdefault(marker_name, {}).setdefault("main", []).append(list(downstream))
+        moved = self.edge_map.by_output.pop(EdgeMap.key(name, 0), None)
+        if moved:
+            self.edge_map.record(
+                marker_name, 0, moved, self.edge_map.branch_labels.pop(EdgeMap.key(name, 0), None)
+            )
 
     # -- nodes -------------------------------------------------------------------------
 
@@ -233,7 +314,10 @@ class _Builder:
                     "sendBody": True,
                     "specifyBody": "json",
                     "jsonBody": "={{ JSON.stringify($json) }}",
-                    "options": {"response": {"response": {"neverError": False}}},
+                    "options": {
+                        "response": {"response": {"neverError": False}},
+                        "timeout": _request_timeout_ms(node),
+                    },
                 },
             }
 
@@ -490,6 +574,16 @@ class _Builder:
         siblings = [n for n, d in sorted(self._depths.items()) if d == depth - offset]
         row = siblings.index(node_id) if node_id in siblings else 0
         return [(depth + 1) * _COLUMN_WIDTH, row * _ROW_HEIGHT]
+
+
+def _request_timeout_ms(node: Node) -> int:
+    """The node's declared timeout, or a short default, clamped to something survivable."""
+    declared = node.configuration.get("timeout_seconds") or node.configuration.get("timeout")
+    try:
+        milliseconds = int(float(declared) * 1000) if declared else _DEFAULT_REQUEST_TIMEOUT_MS
+    except (TypeError, ValueError):
+        milliseconds = _DEFAULT_REQUEST_TIMEOUT_MS
+    return max(250, min(milliseconds, _MAX_REQUEST_TIMEOUT_MS))
 
 
 def _branch_label(edge: Edge) -> str:

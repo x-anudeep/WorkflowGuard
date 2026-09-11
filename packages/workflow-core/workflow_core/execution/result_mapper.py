@@ -61,9 +61,14 @@ def map_execution(
         warnings=list(emitted.warnings),
     )
 
+    # A swallowed error rides the item all the way downstream, so every later node's output
+    # carries it too. Only the node that *introduced* it actually failed; attributing it to the
+    # rest would report one fault as a cascade and make every terminal node look like a crash.
+    seen_errors: set[str] = set()
+
     for n8n_name, task in _tasks_in_execution_order(run_data):
         canonical_id = emitted.nodes.canonical(n8n_name)
-        error = _node_error(task, canonical_id, emitted)
+        error = _node_error(task, canonical_id, emitted, seen_errors)
 
         if canonical_id is not None:
             result.execution_order.append(canonical_id)
@@ -89,7 +94,7 @@ def map_execution(
         if not any(message in failure for failure in result.failures):
             result.failures.append(message)
 
-    if _is_error(execution, result):
+    if _is_error(execution, result) or _failed_with_nowhere_to_go(result, emitted):
         result.status = TestRunStatus.ERROR
 
     return result
@@ -115,7 +120,12 @@ def _tasks_in_execution_order(
     )
 
 
-def _node_error(task: dict[str, Any], canonical_id: str | None, emitted: EmittedWorkflow) -> str | None:
+def _node_error(
+    task: dict[str, Any],
+    canonical_id: str | None,
+    emitted: EmittedWorkflow,
+    seen_errors: set[str],
+) -> str | None:
     """The node's error, whichever of the two shapes n8n used.
 
     Stop-on-error puts it on ``taskData.error``. Under `continueErrorOutput` there is no
@@ -124,17 +134,35 @@ def _node_error(task: dict[str, Any], canonical_id: str | None, emitted: Emitted
     """
     error = task.get("error")
     if isinstance(error, dict) and error.get("message"):
+        seen_errors.add(str(error["message"]))
         return str(error["message"])
 
     if canonical_id is None:
         return None
-    error_index = emitted.error_output_index.get(canonical_id)
-    if error_index is None:
-        return None
+
     outputs = _outputs(task)
-    if len(outputs) <= error_index:
-        return None
-    for item in outputs[error_index] or []:
+    error_index = emitted.error_output_index.get(canonical_id)
+    if error_index is not None and len(outputs) > error_index:
+        found = _error_in(outputs[error_index], "its error output")
+        if found:
+            seen_errors.add(found)
+            return found
+
+    if canonical_id in emitted.swallowing_nodes and outputs:
+        # `continueRegularOutput`: the node threw and carried on regardless, so the error rides
+        # the *normal* output. Missing this is how a workflow that swallows every failure comes
+        # back looking healthy. n8n reports `executionStatus: "success"` and no task error here
+        # (verified against 2.38.7), so the item really is the only evidence.
+        found = _error_in(outputs[0], "and execution continued")
+        if found and found not in seen_errors:
+            seen_errors.add(found)
+            return found
+
+    return None
+
+
+def _error_in(items: list[dict[str, Any]] | None, where: str) -> str | None:
+    for item in items or []:
         json_body = (item or {}).get("json") or {}
         nested = json_body.get("error")
         if isinstance(nested, dict) and nested.get("message"):
@@ -142,7 +170,7 @@ def _node_error(task: dict[str, Any], canonical_id: str | None, emitted: Emitted
         if isinstance(nested, str) and nested:
             return nested
         if nested is not None:
-            return "Node reported an error on its error output."
+            return f"Node reported an error {where}."
     return None
 
 
@@ -199,9 +227,32 @@ def _record_edges(result: SimulationResult, task: dict[str, Any], emitted: Emitt
 
 
 def _is_error(execution: dict[str, Any], result: SimulationResult) -> bool:
-    if execution.get("status") == "error" or execution.get("finished") is False:
-        return True
-    return bool(result.failures)
+    """Whether the *run* failed, as opposed to a node having failed within it.
+
+    n8n already makes this judgement: a node that throws with nowhere to send the error stops
+    the execution (`status: "error"`), while one whose workflow declares an error path - or
+    which is configured to carry on - completes. That is exactly the distinction the simulator
+    drew, and it is the one the fuzzer's verdicts rest on: a failure routed down a declared
+    error path is *handled*, not a crash, so marking the run ERROR merely because a failure was
+    recorded would collapse `handled` and `unhandled_crash` into the same answer.
+
+    Node failures are still recorded in `failures` either way, so assertions like
+    TERMINATED_SUCCESSFULLY and ERROR_OCCURRED keep working.
+    """
+    del result  # failures alone do not make a run an error; see above.
+    return execution.get("status") == "error" or execution.get("finished") is False
+
+
+def _failed_with_nowhere_to_go(result: SimulationResult, emitted: EmittedWorkflow) -> bool:
+    """A node that failed and has no successor.
+
+    n8n completes such a run happily when the node is set to carry on, but there is nothing to
+    carry on *to*: the failure is unhandled by definition, and the fuzzer has to see that.
+    """
+    return any(
+        execution.error and execution.node_id in emitted.terminal_nodes
+        for execution in result.node_executions
+    )
 
 
 def _outputs(task: dict[str, Any]) -> list[list[dict[str, Any]]]:

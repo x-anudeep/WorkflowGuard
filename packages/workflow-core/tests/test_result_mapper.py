@@ -230,8 +230,11 @@ class TestFailureDetection:
             finished=True,
         )
         result = map_execution(execution, emitted, _test(), workflow_id="w1")
-        assert result.status == TestRunStatus.ERROR
         assert any("ECONNREFUSED" in f for f in result.failures)
+        # The workflow declared where to send this error and n8n completed the run, so the run
+        # is not an error - it is a failure that was handled. Collapsing the two would make
+        # every fuzz verdict read `unhandled_crash`.
+        assert result.status == TestRunStatus.PASSED
 
     def test_workflow_level_error_is_captured_once(self, emitted):
         execution = _execution(

@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from workflow_core.canonical.models import SourceType
 from workflow_core.comparison import VersionComparisonEngine
 from workflow_core.costing import CostEstimator, CostOptimizationEngine, CostScenario
+from workflow_core.emitters.n8n import N8nEmitter
 from workflow_core.evaluation import SemanticEvaluationEngine
+from workflow_core.execution import N8nClient, N8nExecutionEngine, mock_registry
 from workflow_core.fuzzing import DEFAULT_MAX_CASES, DEFAULT_SEED, FuzzEngine
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.registry import default_parser_registry
@@ -100,7 +103,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if result.overall_score < 70 else 0
 
     if args.command == "fuzz":
-        report = FuzzEngine().run(workflow, seed=args.seed, max_cases=args.max_cases)
+        report = FuzzEngine(_engine(propagate_failures=True)).run(
+            workflow, seed=args.seed, max_cases=args.max_cases
+        )
         payload = {
             "robustness_score": report.robustness_score,
             "exercised_cases": report.exercised_cases,
@@ -136,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     generation = DeterministicTestGenerator().generate(workflow, None)
-    runner = WorkflowTestRunner()
+    runner = WorkflowTestRunner(_engine())
     runs = []
     for test in generation.tests:
         run = runner.run(workflow, test, all_tests=generation.tests, prior_runs=runs)
@@ -211,6 +216,26 @@ def main(argv: list[str] | None = None) -> int:
 
 def _has_errors(findings) -> bool:
     return any(str(finding.severity) in {"ERROR", "CRITICAL"} for finding in findings)
+
+
+def _engine(*, propagate_failures: bool = False):
+    """The execution engine, configured from the environment.
+
+    The CLI is the CI entry point, so it reads the same variables the API does rather than
+    inventing its own. Running tests now needs a reachable n8n; there is no in-process
+    fallback, and pretending otherwise would report made-up coverage to a pipeline.
+    """
+    return N8nExecutionEngine(
+        N8nClient(
+            os.environ.get("WORKFLOWGUARD_N8N_BASE_URL", "http://localhost:5678"),
+            os.environ.get("WORKFLOWGUARD_N8N_API_KEY"),
+        ),
+        emitter=N8nEmitter(
+            mock_base_url=os.environ.get("WORKFLOWGUARD_MOCK_BASE_URL", "http://localhost:8000/mock")
+        ),
+        mocks=mock_registry,
+        propagate_failures=propagate_failures,
+    )
 
 
 def _emit(as_json: bool, payload: dict) -> None:
