@@ -30,7 +30,16 @@ from workflow_core.testing.models import (
     WorkflowTest,
 )
 
-__all__ = ["map_execution"]
+#: The canonical bound on how many node executions make up one run, carried over from the
+#: simulator. n8n has no step limit - a cyclic workflow simply runs until its execution deadline
+#: - so without this a loop produces tens of thousands of node executions in ten seconds, and
+#: every one of them lands in `execution_order` and then in a database row. The wording of the
+#: resulting failure is the simulator's, because it means exactly the same thing.
+MAX_STEPS = 250
+
+STEP_LIMIT_FAILURE = "Simulation stopped after reaching the maximum step limit."
+
+__all__ = ["MAX_STEPS", "STEP_LIMIT_FAILURE", "map_execution"]
 
 
 def map_execution(
@@ -66,7 +75,9 @@ def map_execution(
     # rest would report one fault as a cascade and make every terminal node look like a crash.
     seen_errors: set[str] = set()
 
-    for n8n_name, task in _tasks_in_execution_order(run_data):
+    tasks = _tasks_in_execution_order(run_data)
+    truncated = len(tasks) > MAX_STEPS
+    for n8n_name, task in tasks[:MAX_STEPS]:
         canonical_id = emitted.nodes.canonical(n8n_name)
         error = _node_error(task, canonical_id, emitted, seen_errors)
 
@@ -88,6 +99,9 @@ def map_execution(
     ]
     result.token_estimate = _estimate_tokens(result.outputs)
 
+    if truncated:
+        result.failures.append(STEP_LIMIT_FAILURE)
+
     # A connection to a node that does not exist could not be emitted, so n8n cannot report it.
     # The run still has to fail when it reaches that edge's source, or a workflow with a broken
     # connection quietly passes.
@@ -102,7 +116,7 @@ def map_execution(
         if not any(message in failure for failure in result.failures):
             result.failures.append(message)
 
-    if _is_error(execution, result) or _failed_with_nowhere_to_go(result, emitted):
+    if truncated or _is_error(execution, result) or _failed_with_nowhere_to_go(result, emitted):
         result.status = TestRunStatus.ERROR
 
     return result
