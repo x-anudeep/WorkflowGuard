@@ -1,6 +1,7 @@
 from pathlib import Path
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 from workflow_core.fuzzing.models import FuzzCase, FuzzStrategy
 from workflow_core.testing.models import FailureInjection, FailureType
@@ -34,6 +35,7 @@ def _upload(client: TestClient) -> dict:
     return response.json()
 
 
+@pytest.mark.integration
 def test_fuzz_campaign_runs_and_persists_without_an_ai_key(client: TestClient) -> None:
     workflow = _upload(client)
 
@@ -63,6 +65,7 @@ def test_fuzz_campaign_runs_and_persists_without_an_ai_key(client: TestClient) -
     assert detail.json()["seed"] == run["seed"]
 
 
+@pytest.mark.integration
 def test_evaluation_blends_reliability_only_after_a_campaign(client: TestClient) -> None:
     workflow = _upload(client)
 
@@ -89,6 +92,7 @@ def test_evaluation_blends_reliability_only_after_a_campaign(client: TestClient)
     assert reliability_after["score"] <= reliability_before["score"]
 
 
+@pytest.mark.integration
 def test_fuzz_findings_reach_the_evaluation(client: TestClient) -> None:
     workflow = _upload(client)
     client.post(f"/api/workflows/{workflow['id']}/fuzz", json={"use_ai": False})
@@ -102,6 +106,7 @@ def test_fuzz_findings_reach_the_evaluation(client: TestClient) -> None:
     assert all(finding["metadata"].get("fuzz_seed") is not None for finding in fuzz_findings)
 
 
+@pytest.mark.integration
 def test_ai_cases_are_added_on_top_of_the_deterministic_corpus(client: TestClient) -> None:
     workflow = _upload(client)
     detail = client.get(f"/api/workflows/{workflow['id']}").json()
@@ -132,6 +137,7 @@ def test_ai_cases_are_added_on_top_of_the_deterministic_corpus(client: TestClien
     assert len(names) > 1
 
 
+@pytest.mark.integration
 def test_provider_error_falls_back_to_the_deterministic_corpus(client: TestClient) -> None:
     workflow = _upload(client)
 

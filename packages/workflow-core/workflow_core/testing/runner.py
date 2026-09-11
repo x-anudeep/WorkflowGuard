@@ -2,15 +2,28 @@ from __future__ import annotations
 
 from workflow_core.canonical.models import Workflow
 from workflow_core.evaluation.models import RequirementSpec
+from workflow_core.execution.engine import engine_unavailable_result
+from workflow_core.execution.n8n_client import N8nError
 from workflow_core.testing.assertions import AssertionEngine
 from workflow_core.testing.coverage import CoverageCalculator
-from workflow_core.testing.models import TestRunStatus, WorkflowTest, WorkflowTestRun
-from workflow_core.testing.simulator import WorkflowSimulator
+from workflow_core.testing.models import (
+    SimulationResult,
+    TestRunStatus,
+    WorkflowTest,
+    WorkflowTestRun,
+)
 
 
 class WorkflowTestRunner:
-    def __init__(self) -> None:
-        self.simulator = WorkflowSimulator()
+    """Runs a test and turns the execution into a `WorkflowTestRun`.
+
+    The engine is injected. It is the n8n-backed one in production; anything exposing
+    ``simulate(workflow, test) -> SimulationResult`` works, which is what keeps the assertion
+    and coverage logic here independent of how a workflow actually gets executed.
+    """
+
+    def __init__(self, engine) -> None:
+        self.engine = engine
         self.assertions = AssertionEngine()
         self.coverage = CoverageCalculator()
 
@@ -24,7 +37,9 @@ class WorkflowTestRunner:
         requirement_spec: RequirementSpec | None = None,
     ) -> WorkflowTestRun:
         if not test.enabled:
-            simulation = self.simulator.simulate(workflow, test)
+            simulation = SimulationResult(
+                workflow_id=workflow.id, test_id=test.id, status=TestRunStatus.SKIPPED
+            )
             return WorkflowTestRun(
                 workflow_id=workflow.id,
                 workflow_version_id=test.workflow_version_id,
@@ -35,7 +50,26 @@ class WorkflowTestRunner:
                 failures=["Test is disabled."],
                 duration_ms=0,
             )
-        simulation = self.simulator.simulate(workflow, test)
+        try:
+            simulation = self.engine.simulate(workflow, test)
+        except N8nError as exc:
+            # The engine failed, not the workflow. Record a run that says so rather than
+            # letting an infrastructure problem be read as a workflow defect - or vanish.
+            run = WorkflowTestRun(
+                workflow_id=workflow.id,
+                workflow_version_id=test.workflow_version_id,
+                test_id=test.id,
+                status=TestRunStatus.ERROR,
+                simulation=engine_unavailable_result(workflow, test, exc),
+                assertion_results=[],
+                failures=[f"Execution engine unavailable: {exc}"],
+                duration_ms=0,
+            )
+            run.coverage = self.coverage.calculate(
+                workflow, [*(prior_runs or []), run], all_tests or [test], requirement_spec
+            )
+            return run
+
         assertion_results = self.assertions.evaluate(test, simulation)
         assertion_failures = [result.message for result in assertion_results if not result.passed]
         failures = [*simulation.failures, *assertion_failures]

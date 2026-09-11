@@ -21,6 +21,7 @@ from workflowguard_api.models.db import (
     RequirementSpecificationRecord,
 )
 from workflowguard_api.services.audit import AuditService
+from workflowguard_api.services.execution import build_engine
 from workflowguard_api.services.workflows import WorkflowService
 
 #: Full simulation traces for a large campaign would dominate the row size; keep the
@@ -42,7 +43,7 @@ class FuzzService:
     def __init__(self, db: Session, ai_provider: FuzzGenerationProvider | None = None) -> None:
         self.db = db
         self.workflow_service = WorkflowService(db)
-        self.engine = FuzzEngine()
+        self.engine = FuzzEngine(build_engine(propagate_failures=True))
         self.generator = DeterministicFuzzGenerator()
         self.extractor = DeterministicRequirementExtractor()
         self.audit = AuditService(db)

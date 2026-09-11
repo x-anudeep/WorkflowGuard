@@ -1,3 +1,5 @@
+import pytest
+
 from workflow_core.analysis import diagnose_entrypoints
 from workflow_core.canonical.models import (
     Edge,
@@ -48,9 +50,10 @@ def _guarded_workflow() -> Workflow:
     return workflow
 
 
-def test_unchecked_dependency_failure_is_reported_as_silent() -> None:
+@pytest.mark.integration
+def test_unchecked_dependency_failure_is_reported_as_silent(fuzz_engine) -> None:
     """Nothing inspects the failed call, so the run finishes green having done nothing."""
-    report = FuzzEngine().run(_unguarded_workflow(), max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(_unguarded_workflow(), max_cases=200)
 
     assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] > 0
     assert report.robustness_score < 100
@@ -63,7 +66,8 @@ def test_unchecked_dependency_failure_is_reported_as_silent() -> None:
     assert silent.metadata["fuzz_case_names"]
 
 
-def test_failure_with_nowhere_to_continue_is_an_unhandled_crash() -> None:
+@pytest.mark.integration
+def test_failure_with_nowhere_to_continue_is_an_unhandled_crash(fuzz_engine) -> None:
     workflow = Workflow(
         name="Terminal dependency",
         source_format=SourceFormat.GENERIC_JSON,
@@ -73,7 +77,7 @@ def test_failure_with_nowhere_to_continue_is_an_unhandled_crash() -> None:
         ],
         edges=[Edge(id="e1", source="start", target="pay")],
     )
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
 
     assert report.counts[ErrorHandlingVerdict.UNHANDLED_CRASH.value] > 0
     crash = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-001")
@@ -81,7 +85,8 @@ def test_failure_with_nowhere_to_continue_is_an_unhandled_crash() -> None:
     assert crash.node_id == "pay"
 
 
-def test_downstream_condition_can_handle_an_upstream_failure() -> None:
+@pytest.mark.integration
+def test_downstream_condition_can_handle_an_upstream_failure(fuzz_engine) -> None:
     """The common real shape: the call runs, the next branch inspects the result."""
     workflow = Workflow(
         name="Checked payment",
@@ -106,28 +111,30 @@ def test_downstream_condition_can_handle_an_upstream_failure() -> None:
             Edge(id="e5", source="alert", target="end"),
         ],
     )
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
 
     assert report.counts[ErrorHandlingVerdict.HANDLED.value] > 0
     assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] == 0
     assert report.robustness_score == 100
 
 
-def test_declared_error_path_that_notifies_counts_as_handled() -> None:
-    report = FuzzEngine().run(_guarded_workflow(), max_cases=200)
+@pytest.mark.integration
+def test_declared_error_path_that_notifies_counts_as_handled(fuzz_engine) -> None:
+    report = FuzzEngine(fuzz_engine).run(_guarded_workflow(), max_cases=200)
 
     assert report.counts[ErrorHandlingVerdict.UNHANDLED_CRASH.value] == 0
     assert report.counts[ErrorHandlingVerdict.HANDLED.value] > 0
-    assert report.robustness_score > FuzzEngine().run(_unguarded_workflow(), max_cases=200).robustness_score
+    assert report.robustness_score > FuzzEngine(fuzz_engine).run(_unguarded_workflow(), max_cases=200).robustness_score
     assert not [finding for finding in report.findings if finding.rule_id == "WG-FUZZ-001"]
 
 
-def test_error_branch_that_only_ends_is_reported_as_silent() -> None:
+@pytest.mark.integration
+def test_error_branch_that_only_ends_is_reported_as_silent(fuzz_engine) -> None:
     """An error edge straight to END hides the failure rather than handling it."""
     workflow = _unguarded_workflow()
     workflow.edges.append(Edge(id="e3", source="pay", target="end", label="on error"))
 
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
 
     assert report.counts[ErrorHandlingVerdict.SILENT_SUCCESS.value] > 0
     silent = next(finding for finding in report.findings if finding.rule_id == "WG-FUZZ-002")
@@ -135,7 +142,8 @@ def test_error_branch_that_only_ends_is_reported_as_silent() -> None:
     assert "swallow" in silent.title.lower() or "silent" in silent.title.lower()
 
 
-def test_generation_is_reproducible_for_a_seed() -> None:
+@pytest.mark.integration
+def test_generation_is_reproducible_for_a_seed(fuzz_engine) -> None:
     workflow = _unguarded_workflow()
     generator = DeterministicFuzzGenerator()
 
@@ -147,12 +155,13 @@ def test_generation_is_reproducible_for_a_seed() -> None:
     assert [case.name for case in first] != [case.name for case in different]
 
 
-def test_injected_failure_on_an_unreached_node_is_not_counted_as_a_pass() -> None:
+@pytest.mark.integration
+def test_injected_failure_on_an_unreached_node_is_not_counted_as_a_pass(fuzz_engine) -> None:
     """A case that never fired proved nothing and must stay out of the denominator."""
     workflow = _unguarded_workflow()
     workflow.nodes.append(Node(id="orphan", name="Unreachable API", type=NodeType.EXTERNAL_API))
 
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
     orphan_results = [
         result
         for result in report.results
@@ -167,7 +176,8 @@ def test_injected_failure_on_an_unreached_node_is_not_counted_as_a_pass() -> Non
     )
 
 
-def test_robustness_score_ignores_untriggered_cases() -> None:
+@pytest.mark.integration
+def test_robustness_score_ignores_untriggered_cases(fuzz_engine) -> None:
     def result(verdict: ErrorHandlingVerdict) -> FuzzCaseResult:
         return FuzzCaseResult(
             case=FuzzCase(name="c", description="d"),
@@ -197,10 +207,11 @@ def _reliability(scores) -> object:
     )
 
 
-def test_reliability_score_is_unchanged_when_no_fuzz_report_exists() -> None:
+@pytest.mark.integration
+def test_reliability_score_is_unchanged_when_no_fuzz_report_exists(fuzz_engine) -> None:
     """Regression guard: every workflow scored before fuzzing existed must score the same."""
     workflow = _unguarded_workflow()
-    findings = FuzzEngine().run(workflow, max_cases=200).findings
+    findings = FuzzEngine(fuzz_engine).run(workflow, max_cases=200).findings
 
     without = _reliability(dimension_scores(workflow, 90, [], findings))
     explicit_none = _reliability(dimension_scores(workflow, 90, [], findings, None))
@@ -218,9 +229,10 @@ def test_reliability_score_is_unchanged_when_no_fuzz_report_exists() -> None:
         assert entry["applied"] <= entry["budget"], rule_id
 
 
-def test_reliability_blends_static_and_measured_robustness() -> None:
+@pytest.mark.integration
+def test_reliability_blends_static_and_measured_robustness(fuzz_engine) -> None:
     workflow = _unguarded_workflow()
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
 
     score = _reliability(dimension_scores(workflow, 90, [], report.findings, report))
     penalty_score = score.calculation["penalty_score"]
@@ -234,7 +246,8 @@ def test_reliability_blends_static_and_measured_robustness() -> None:
     assert score.score < penalty_score
 
 
-def test_unexercised_fuzz_report_does_not_inflate_reliability() -> None:
+@pytest.mark.integration
+def test_unexercised_fuzz_report_does_not_inflate_reliability(fuzz_engine) -> None:
     """A campaign where nothing fired proves nothing and must not earn credit."""
     workflow = Workflow(
         name="No dependencies",
@@ -245,7 +258,7 @@ def test_unexercised_fuzz_report_does_not_inflate_reliability() -> None:
         ],
         edges=[Edge(id="e1", source="start", target="end")],
     )
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
     for result in report.results:
         result.verdict = ErrorHandlingVerdict.NOT_TRIGGERED
 
@@ -278,7 +291,8 @@ def _gated_workflow() -> Workflow:
     )
 
 
-def test_reaching_input_solves_the_branch_conditions_on_the_path() -> None:
+@pytest.mark.integration
+def test_reaching_input_solves_the_branch_conditions_on_the_path(fuzz_engine) -> None:
     workflow = _gated_workflow()
     path = path_to(workflow, "pay")
 
@@ -288,7 +302,8 @@ def test_reaching_input_solves_the_branch_conditions_on_the_path() -> None:
     assert reaching_input(workflow, "pay", {"approved": True}) == {"approved": True, "amount": 50001}
 
 
-def test_reaching_input_returns_the_base_when_the_node_is_unreachable() -> None:
+@pytest.mark.integration
+def test_reaching_input_returns_the_base_when_the_node_is_unreachable(fuzz_engine) -> None:
     workflow = _gated_workflow()
     workflow.nodes.append(Node(id="orphan", name="Orphan", type=NodeType.EXTERNAL_API))
 
@@ -296,10 +311,11 @@ def test_reaching_input_returns_the_base_when_the_node_is_unreachable() -> None:
     assert reaching_input(workflow, "orphan", {"approved": True}) == {"approved": True}
 
 
-def test_failure_behind_a_branch_is_measured_instead_of_discarded() -> None:
+@pytest.mark.integration
+def test_failure_behind_a_branch_is_measured_instead_of_discarded(fuzz_engine) -> None:
     """Without steering, every fault on `pay` would be NOT_TRIGGERED and score nothing."""
     workflow = _gated_workflow()
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
 
     pay_results = [
         result
@@ -341,7 +357,8 @@ def _misanchored_workflow() -> Workflow:
     )
 
 
-def test_mis_anchored_start_is_reported_as_a_suggestion() -> None:
+@pytest.mark.integration
+def test_mis_anchored_start_is_reported_as_a_suggestion(fuzz_engine) -> None:
     workflow = _misanchored_workflow()
     diagnosis = diagnose_entrypoints(workflow)
 
@@ -353,15 +370,17 @@ def test_mis_anchored_start_is_reported_as_a_suggestion() -> None:
     assert "Fetch Claims" in diagnosis.suggestion
 
 
-def test_healthy_workflows_get_no_entrypoint_suggestion() -> None:
+@pytest.mark.integration
+def test_healthy_workflows_get_no_entrypoint_suggestion(fuzz_engine) -> None:
     assert diagnose_entrypoints(_guarded_workflow()) is None
     assert diagnose_entrypoints(_gated_workflow()) is None
 
 
-def test_entrypoint_suggestion_does_not_change_any_score() -> None:
+@pytest.mark.integration
+def test_entrypoint_suggestion_does_not_change_any_score(fuzz_engine) -> None:
     """The whole point: advice must not move reliability, penalties, or robustness."""
     workflow = _misanchored_workflow()
-    report = FuzzEngine().run(workflow, max_cases=200)
+    report = FuzzEngine(fuzz_engine).run(workflow, max_cases=200)
 
     assert report.suggestions, "the mis-anchored start should be reported"
     # Reported, but nothing measurable changed: no cases fired, so no blend happens.

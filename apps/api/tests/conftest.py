@@ -18,8 +18,30 @@ os.environ["WORKFLOWGUARD_DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["WORKFLOWGUARD_AI_PROVIDER"] = "none"
 os.environ["WORKFLOWGUARD_AI_API_KEY"] = ""
 
+from workflow_core.execution import N8nClient  # noqa: E402
+
 from workflowguard_api.db.session import Base, get_db  # noqa: E402
 from workflowguard_api.main import create_app  # noqa: E402
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip tests that need a live execution engine.
+
+    Since the simulator was removed, running a workflow means running it in n8n. These tests
+    skip unless one is configured and answering, so the default suite stays offline.
+    """
+    base_url = os.environ.get("WORKFLOWGUARD_TEST_N8N_BASE_URL")
+    reason = None
+    if not base_url:
+        reason = "WORKFLOWGUARD_TEST_N8N_BASE_URL is not set; no execution engine to run against"
+    elif not N8nClient(base_url).health():
+        reason = f"no n8n answering at {base_url}"
+    if reason is None:
+        return
+    skip = pytest.mark.skip(reason=reason)
+    for item in items:
+        if "integration" in item.keywords:
+            item.add_marker(skip)
 
 
 @pytest.fixture()

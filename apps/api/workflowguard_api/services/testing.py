@@ -27,6 +27,7 @@ from workflowguard_api.models.db import (
     WorkflowTestRunRecord,
 )
 from workflowguard_api.services.evaluations import EvaluationService
+from workflowguard_api.services.execution import build_engine
 from workflowguard_api.services.workflows import WorkflowService
 
 
@@ -39,13 +40,18 @@ class WorkflowTestRunNotFoundError(LookupError):
 
 
 class WorkflowTestingService:
-    def __init__(self, db: Session, ai_provider: TestGenerationProvider | None = None) -> None:
+    def __init__(
+        self,
+        db: Session,
+        ai_provider: TestGenerationProvider | None = None,
+        engine=None,
+    ) -> None:
         self.db = db
         self.workflow_service = WorkflowService(db)
         self.evaluation_service = EvaluationService(db)
         self.generator = DeterministicTestGenerator()
         self.extractor = DeterministicRequirementExtractor()
-        self.runner = WorkflowTestRunner()
+        self.runner = WorkflowTestRunner(engine or build_engine())
         self.ai_provider = ai_provider
 
     def generate_tests(self, workflow_id: uuid.UUID, *, use_ai: bool = True, replace_existing: bool = False) -> tuple[TestGenerationResult, list[WorkflowTestRecord]]:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from workflow_core.canonical.models import Edge, Node, NodeType, SourceFormat, Workflow
 from workflow_core.cli import main
 from workflow_core.evaluation.requirements import DeterministicRequirementExtractor
@@ -13,7 +15,6 @@ from workflow_core.testing import (
     FailureInjection,
     FailureType,
     WorkflowAssertion,
-    WorkflowSimulator,
     WorkflowTest,
     WorkflowTestRunner,
 )
@@ -44,7 +45,8 @@ def branching_workflow() -> Workflow:
     )
 
 
-def test_simulator_follows_condition_branch_and_requests_approval() -> None:
+@pytest.mark.integration
+def test_simulator_follows_condition_branch_and_requests_approval(engine) -> None:
     workflow = branching_workflow()
     test = WorkflowTest(
         name="High amount approval",
@@ -55,14 +57,15 @@ def test_simulator_follows_condition_branch_and_requests_approval() -> None:
             WorkflowAssertion(type=AssertionType.APPROVAL_REQUESTED, target="approval"),
         ],
     )
-    result = WorkflowSimulator().simulate(workflow, test)
+    result = engine.simulate(workflow, test)
     assertions = AssertionEngine().evaluate(test, result)
     assert result.execution_order == ["start", "check", "approval", "sap", "end"]
     assert result.approval_requests == ["approval"]
     assert all(item.passed for item in assertions)
 
 
-def test_failure_injection_records_retries_and_failure() -> None:
+@pytest.mark.integration
+def test_failure_injection_records_retries_and_failure(engine) -> None:
     workflow = branching_workflow()
     test = WorkflowTest(
         name="SAP timeout",
@@ -74,7 +77,7 @@ def test_failure_injection_records_retries_and_failure() -> None:
             WorkflowAssertion(type=AssertionType.RETRY_COUNT, target="sap", expected=2),
         ],
     )
-    run = WorkflowTestRunner().run(workflow, test)
+    run = WorkflowTestRunner(engine).run(workflow, test)
     assert run.status == "ERROR"
     assert run.simulation.retries["sap"] == 2
     assert any("timeout" in failure.lower() for failure in run.failures)
@@ -93,10 +96,11 @@ def test_generation_creates_branch_edge_case_failure_and_requirement_tests() -> 
     assert any(test.linked_requirement_id for test in result.tests)
 
 
-def test_workflow_coverage_is_not_source_code_coverage() -> None:
+@pytest.mark.integration
+def test_workflow_coverage_is_not_source_code_coverage(engine) -> None:
     workflow = branching_workflow()
     tests = DeterministicTestGenerator().generate(workflow).tests[:2]
-    runner = WorkflowTestRunner()
+    runner = WorkflowTestRunner(engine)
     runs = []
     for test in tests:
         runs.append(runner.run(workflow, test, all_tests=tests, prior_runs=runs))
@@ -106,6 +110,7 @@ def test_workflow_coverage_is_not_source_code_coverage() -> None:
     assert "nodes" in coverage.calculation
 
 
+@pytest.mark.integration
 def test_cli_validate_and_test_commands_emit_exit_codes(capsys) -> None:
     valid = ROOT / "examples" / "json" / "valid-workflow.json"
     malformed = ROOT / "examples" / "json" / "malformed.json"

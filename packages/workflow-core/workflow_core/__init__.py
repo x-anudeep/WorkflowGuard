@@ -10,13 +10,10 @@ from workflow_core.comparison import VersionComparisonEngine
 from workflow_core.conditions import evaluate_condition, parse_condition
 from workflow_core.costing import CostEstimator, CostOptimizationEngine
 from workflow_core.evaluation.engine import SemanticEvaluationEngine
+from workflow_core.execution import N8nClient, N8nExecutionEngine
 from workflow_core.parsers.registry import ParserRegistry, default_parser_registry
 from workflow_core.repair import DeterministicRepairEngine, RepairPatchApplier
-from workflow_core.testing import (
-    DeterministicTestGenerator,
-    WorkflowSimulator,
-    WorkflowTestRunner,
-)
+from workflow_core.testing import DeterministicTestGenerator, WorkflowTestRunner
 from workflow_core.validation.engine import ValidationEngine
 
 __all__ = [
@@ -35,8 +32,9 @@ __all__ = [
     "ValidationEngine",
     "ValidationFinding",
     "VersionComparisonEngine",
+    "N8nClient",
+    "N8nExecutionEngine",
     "Workflow",
-    "WorkflowSimulator",
     "WorkflowTestRunner",
     "default_parser_registry",
     "parse_condition",

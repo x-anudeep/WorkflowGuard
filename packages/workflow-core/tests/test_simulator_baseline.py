@@ -9,9 +9,13 @@ That explanation is the acceptance criterion for the whole migration. Coverage f
 overall evaluation score, so "the numbers moved and nobody checked why" would silently restate
 the quality of every workflow in the system.
 
-While the simulator still exists these tests double as a regression guard on it. Regenerate
-deliberately with `python packages/workflow-core/tests/baseline_support.py` - never let a
-failure here be fixed by regenerating without reading the diff first.
+The simulator is gone, so reproducing a baseline now requires a live n8n; that test is marked
+`integration` and skips without one. The baseline files themselves stay exactly as recorded -
+they are the thing being compared against, and regenerating them with the new engine would
+destroy the comparison rather than perform it.
+
+Never "fix" a failure here by regenerating. Read the diff, decide for each line whether it is a
+simulator inaccuracy now corrected or an emitter bug, and write that down.
 """
 
 import pytest
@@ -23,6 +27,8 @@ from baseline_support import (
     snapshot,
 )
 
+from workflow_core.testing import WorkflowTestRunner
+
 
 @pytest.mark.parametrize("example", EXAMPLE_WORKFLOWS)
 def test_a_baseline_exists_for_every_example(example):
@@ -33,12 +39,17 @@ def test_a_baseline_exists_for_every_example(example):
     )
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("example", EXAMPLE_WORKFLOWS)
-def test_the_simulator_still_reproduces_its_baseline(example):
-    differences = diff_snapshots(load_baseline(example), snapshot(example))
-    assert not differences, "Behaviour changed for {}:\n  {}".format(
-        example, "\n  ".join(differences)
+def test_n8n_reproduces_the_baseline(example, engine):
+    """The differential gate: real execution against what the simulator recorded."""
+    differences = diff_snapshots(
+        load_baseline(example), snapshot(example, WorkflowTestRunner(engine))
     )
+    assert not differences, (
+        "n8n diverged from the recorded simulator behaviour for {}.\n"
+        "Each line must be explained as a simulator inaccuracy now fixed, or an emitter bug:\n  {}"
+    ).format(example, "\n  ".join(differences))
 
 
 def test_the_baseline_captures_the_fields_the_comparison_needs():

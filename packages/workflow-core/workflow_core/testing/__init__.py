@@ -1,3 +1,4 @@
+from workflow_core.conditions import evaluate_condition
 from workflow_core.testing.assertions import AssertionEngine
 from workflow_core.testing.coverage import CoverageCalculator
 from workflow_core.testing.generator import DeterministicTestGenerator, default_mocks
@@ -20,7 +21,6 @@ from workflow_core.testing.models import (
     WorkflowTestRun,
 )
 from workflow_core.testing.runner import WorkflowTestRunner
-from workflow_core.testing.simulator import WorkflowSimulator, evaluate_condition
 
 __all__ = [
     "AssertionEngine",
@@ -41,7 +41,6 @@ __all__ = [
     "TestImportance",
     "TestRunStatus",
     "WorkflowAssertion",
-    "WorkflowSimulator",
     "evaluate_condition",
     "WorkflowTest",
     "WorkflowTestRun",

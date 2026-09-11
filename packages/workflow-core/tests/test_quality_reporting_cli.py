@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from workflow_core.cli import main
 from workflow_core.quality import QualityGateEngine
 from workflow_core.reporting import render_markdown_report
@@ -31,11 +33,13 @@ def test_markdown_report_contains_gate_and_scores() -> None:
     assert "Quality Gate: **FAIL**" in markdown
 
 
+@pytest.mark.integration
 def test_cli_check_returns_nonzero_for_broken_workflow() -> None:
     exit_code = main(["check", str(ROOT / "examples" / "json" / "orphan-node.json"), "--json"])
     assert exit_code == 1
 
 
+@pytest.mark.integration
 def test_cli_report_generates_markdown(capsys) -> None:
     exit_code = main(["report", str(ROOT / "examples" / "json" / "valid-workflow.json")])
     assert exit_code == 0

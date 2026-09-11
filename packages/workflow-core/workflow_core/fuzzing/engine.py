@@ -28,29 +28,28 @@ from workflow_core.testing.models import (
     TestRunStatus,
     WorkflowTest,
 )
-from workflow_core.testing.simulator import WorkflowSimulator
 
 STEP_LIMIT_MARKER = "maximum step limit"
 
 LIMITATIONS = [
-    "Fuzz robustness is measured against the simulated canonical graph, not a production runtime.",
-    "External systems are mocked; results describe declared error handling, not real dependency behaviour.",
+    "Fuzz robustness is measured by executing the workflow in n8n with its integrations "
+    "redirected to a mock server, not against production dependencies.",
+    "External systems are mocked; results describe how the workflow handles injected failures, "
+    "not real dependency behaviour.",
     "A HANDLED verdict means the run reached a declared error path, not that the recovery is correct.",
 ]
 
 
 class FuzzEngine:
-    """Executes fuzz cases through the sandboxed simulator and classifies error handling.
+    """Executes fuzz cases through the execution engine and classifies error handling.
 
-    This never touches the network and never executes uploaded code - it reuses
-    :class:`~workflow_core.testing.simulator.WorkflowSimulator`, the same sandbox the
-    deterministic test suite runs in.
+    The engine must be built with ``propagate_failures=True``: fuzzing measures how a workflow
+    behaves *past* the point of failure, so a run that halts at the first throw says nothing.
+    Stored test runs use the strict engine instead.
     """
 
-    def __init__(self) -> None:
-        # Fuzzing measures how a workflow behaves *past* the point of failure, so it
-        # needs the propagating simulator; stored test runs keep the strict one.
-        self.simulator = WorkflowSimulator(propagate_failures=True)
+    def __init__(self, engine) -> None:
+        self.engine = engine
         self.generator = DeterministicFuzzGenerator()
 
     def run(
@@ -122,7 +121,7 @@ class FuzzEngine:
             strategy=FuzzStrategy.BASELINE,
             input_data={"amount": 100, "approved": True},
         )
-        return self.simulator.simulate(workflow, _as_test(workflow, baseline_case))
+        return self.engine.simulate(workflow, _as_test(workflow, baseline_case))
 
     def _run_case(
         self,
@@ -132,7 +131,7 @@ class FuzzEngine:
         edges_by_id: dict[str, Edge],
         nodes_by_id: dict[str, Node],
     ) -> FuzzCaseResult:
-        simulation = self.simulator.simulate(workflow, _as_test(workflow, case))
+        simulation = self.engine.simulate(workflow, _as_test(workflow, case))
         verdict, observed, evidence = _classify(case, simulation, baseline, edges_by_id, nodes_by_id)
 
         if verdict == ErrorHandlingVerdict.NOT_TRIGGERED and case.failure_injections:
@@ -174,7 +173,7 @@ class FuzzEngine:
             return None
 
         steered_case = case.model_copy(update={"input_data": steered})
-        simulation = self.simulator.simulate(workflow, _as_test(workflow, steered_case))
+        simulation = self.engine.simulate(workflow, _as_test(workflow, steered_case))
         verdict, observed, evidence = _classify(
             steered_case, simulation, baseline, edges_by_id, nodes_by_id
         )
@@ -252,7 +251,7 @@ def _classify(
         if any(STEP_LIMIT_MARKER in failure for failure in simulation.failures):
             return (
                 ErrorHandlingVerdict.HUNG,
-                "The run never terminated and hit the simulator step limit.",
+                "The run never terminated within the engine's time limit.",
                 evidence,
             )
         return (
@@ -326,7 +325,7 @@ def _recovery_after_failure(
     ]
 
 
-#: Generic state keys the simulator writes when a step fails. A branch testing one of
+#: Generic state keys written when a step fails. A branch testing one of
 #: these unqualified is reading the failure, whatever the failing step was called.
 _GENERIC_FAILURE_FIELDS = frozenset({"success", "ok", "error", "status", "statuscode", "status_code"})
 
@@ -386,6 +385,6 @@ def _reads_failure(condition: str | None, output_variables: set[str]) -> bool:
     lowered = condition.lower()
     if any(variable in lowered for variable in output_variables):
         return True
-    # An unqualified `success == false` reads the generic marker the simulator wrote.
+    # An unqualified `success == false` reads the generic failure marker.
     bare = re.findall(r"\b([a-z_][a-z0-9_]*)\s*(?:==|!=|<|>|<=|>=)", lowered)
     return any(field in _GENERIC_FAILURE_FIELDS for field in bare)

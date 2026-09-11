@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -36,6 +37,7 @@ def test_generate_tests_persists_editable_system_tests(client: TestClient) -> No
     assert len(listed.json()) == body["generated"]
 
 
+@pytest.mark.integration
 def test_create_and_run_custom_test(client: TestClient) -> None:
     workflow_id = upload_workflow(client)
     create = client.post(

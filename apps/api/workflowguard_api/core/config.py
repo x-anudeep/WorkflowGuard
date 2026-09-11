@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     ai_api_key: str | None = None
     ai_model: str = "gpt-4o-mini"
     ai_timeout_seconds: float = 20.0
+    n8n_base_url: str = "http://n8n:5678"
+    n8n_api_key: str | None = None
+    n8n_run_timeout_seconds: float = 60.0
+    n8n_poll_interval_seconds: float = 0.25
     #: Where emitted workflows send their integration calls. n8n must be able to reach this
     #: host, so in docker-compose it is the API's service name rather than localhost.
     mock_base_url: str = "http://api:8000/mock"

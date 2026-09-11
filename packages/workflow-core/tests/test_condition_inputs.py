@@ -4,6 +4,8 @@ Two defects made generated tests fail for reasons that said nothing about the wo
 because tests feed coverage and the quality gate, those failures were charged to its score.
 """
 
+import pytest
+
 from workflow_core.analysis.reachability import satisfying_state
 from workflow_core.canonical.models import (
     Edge,
@@ -13,9 +15,9 @@ from workflow_core.canonical.models import (
     SourceType,
     Workflow,
 )
+from workflow_core.conditions import evaluate_condition
 from workflow_core.testing.generator import DeterministicTestGenerator
 from workflow_core.testing.runner import WorkflowTestRunner
-from workflow_core.testing.simulator import WorkflowSimulator, evaluate_condition
 
 
 def _branching_workflow() -> Workflow:
@@ -75,27 +77,28 @@ def test_branch_inputs_come_from_the_condition_not_a_fixed_vocabulary() -> None:
     assert {"starter", "enterprise"} & values
 
 
-def test_generated_branch_tests_actually_reach_their_branch() -> None:
+@pytest.mark.integration
+def test_generated_branch_tests_actually_reach_their_branch(engine) -> None:
     workflow = _branching_workflow()
     tests = DeterministicTestGenerator().generate(workflow).tests
-    simulator = WorkflowSimulator()
 
     for test in (t for t in tests if t.name.startswith("Branch:")):
-        executed = {e.node_id for e in simulator.simulate(workflow, test).node_executions}
+        executed = {e.node_id for e in engine.simulate(workflow, test).node_executions}
         assert set(test.expected_path) <= executed, f"{test.name} never reached its branch"
 
 
-def test_happy_path_walks_the_path_it_asserts() -> None:
+@pytest.mark.integration
+def test_happy_path_walks_the_path_it_asserts(engine) -> None:
     """The input has to satisfy the conditions on the edges `_primary_path` chose."""
     workflow = _branching_workflow()
     tests = DeterministicTestGenerator().generate(workflow).tests
     happy = next(t for t in tests if t.name == "Happy path")
 
-    result = WorkflowTestRunner().run(workflow, happy)
+    result = WorkflowTestRunner(engine).run(workflow, happy)
     assert str(result.status) == "PASSED", result.failures
 
 
-def test_satisfying_state_reads_the_field_names_the_simulator_reads() -> None:
-    """Simulator state is flat - it resolves `a.b.c` by its last segment."""
+def test_satisfying_state_reads_the_field_names_the_evaluator_reads() -> None:
+    """Executed state is flat - `a.b.c` resolves by its last segment."""
     state = satisfying_state('signupPayload.plan == "enterprise"')
     assert evaluate_condition('signupPayload.plan == "enterprise"', state) is True
