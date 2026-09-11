@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FlaskConical, Play, Plus } from "lucide-react";
+import { FlaskConical, Play, Plus, ShieldAlert } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { formatDate, statusTone } from "@/lib/format";
@@ -211,6 +211,7 @@ function Trace({ run }: { run: TestRunSummary["runs"][number] }) {
           {run.failures.map((failure) => <div key={failure}>{failure}</div>)}
         </div>
       )}
+      <Approximations warnings={run.execution_trace.warnings ?? []} />
       {run.coverage && (
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 md:grid-cols-4">
           <span>Nodes {run.coverage.node_coverage}%</span>
@@ -219,6 +220,35 @@ function Trace({ run }: { run: TestRunSummary["runs"][number] }) {
           <span>Requirements {run.coverage.requirement_coverage}%</span>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * What the run could not actually exercise.
+ *
+ * Amber rather than red, and worded as a limit rather than a fault: nothing failed, but part of
+ * the result rests on something the engine approximated. A green run with three of these behind
+ * it is weaker evidence than a green run with none, and the panel has to say so -- otherwise
+ * coverage reads as proof of work that was never performed.
+ */
+function Approximations({ warnings }: { warnings: string[] }) {
+  if (warnings.length === 0) return null;
+  return (
+    <div className="mt-3 border border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
+      <div className="flex gap-2">
+        <ShieldAlert size={16} className="mt-0.5 shrink-0" />
+        <div>
+          <div className="font-medium">
+            {warnings.length} part{warnings.length === 1 ? "" : "s"} of this run were approximated
+          </div>
+          <ul className="mt-1 grid gap-1">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }

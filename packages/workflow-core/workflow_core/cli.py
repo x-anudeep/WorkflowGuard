@@ -23,7 +23,17 @@ from workflow_core.validation.engine import ValidationEngine
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="workflowguard", description="WorkflowGuard workflow QA CLI")
+    parser = argparse.ArgumentParser(
+        prog="workflowguard",
+        description=(
+            "WorkflowGuard workflow QA CLI. `test`, `fuzz`, `check` and `report` execute the "
+            "workflow in n8n, so they need WORKFLOWGUARD_N8N_BASE_URL to point at a reachable "
+            "instance and WORKFLOWGUARD_N8N_API_KEY to hold a key with the workflow:activate "
+            "scope. Integration calls are redirected to mock endpoints this command serves "
+            "itself, so nothing reaches a real service. `validate`, `evaluate`, `cost` and "
+            "`compare` execute nothing and need no engine."
+        ),
+    )
     subcommands = parser.add_subparsers(dest="command", required=True)
     for command in ("validate", "evaluate", "fuzz", "test", "cost", "check", "report"):
         command_parser = subcommands.add_parser(command)

@@ -6,7 +6,7 @@ Part 1 built the deterministic foundation: upload BPMN 2.0 XML, generic JSON, or
 
 Part 2 adds the intelligence layer: prompt-to-requirement extraction, semantic prompt alignment, explainable scoring, reliability analysis, security analysis, maintainability analysis, and persisted evaluation history.
 
-Part 3 turns WorkflowGuard into an automated workflow QA system: deterministic and optional AI-assisted test generation, safe workflow simulation, assertions, failure injection, coverage calculation, test history, UI reporting, and CI-friendly CLI commands.
+Part 3 turns WorkflowGuard into an automated workflow QA system: deterministic and optional AI-assisted test generation, real workflow execution in n8n, assertions, failure injection, coverage calculation, test history, UI reporting, and CI-friendly CLI commands.
 
 Part 4 adds cost intelligence and controlled repair: configurable pricing, scenario forecasts, optimization recommendations, workflow version comparison, AI-assisted repair patch generation, sandbox preview, and accept/reject versioning.
 
@@ -15,7 +15,7 @@ Part 5 completes the demo-quality platform shell: quality gates, global reposito
 ## Architecture
 
 - `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, simulator, assertions, coverage, cost estimation, version comparison, repair patches, scoring, and CLI.
-- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation/test/cost/repair handling, REST API, provider-neutral AI adapters.
+- `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation/test/cost/repair handling, REST API, provider-neutral AI adapters, and the mock endpoints emitted workflows call instead of their real integrations.
 - `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, evaluation, testing, cost, compare, and repair UI.
 - `examples`: valid and intentionally broken BPMN, generic JSON, and n8n workflows.
 - `docs`: architecture notes and roadmap context.
@@ -30,6 +30,9 @@ docker compose up --build
 Then open:
 
 - Web: `http://localhost:3000`
+- n8n: `http://localhost:5678` (create an API key at Settings > n8n API, or run
+  `python scripts/bootstrap_n8n.py`, and set `WORKFLOWGUARD_N8N_API_KEY`; it needs the
+  `workflow:activate` scope or publishing fails with a bare 403)
 - API docs: `http://localhost:8000/docs`
 - API health: `http://localhost:8000/api/health`
 
@@ -62,7 +65,12 @@ Two things to know before building against it:
 
 ## Hosting
 
-WorkflowGuard should be hosted as three resources: the Next.js frontend, the FastAPI backend, and PostgreSQL for durable workflow data.
+WorkflowGuard should be hosted as four resources: the Next.js frontend, the FastAPI backend, PostgreSQL for durable workflow data, and an n8n instance that executes workflow tests.
+
+**n8n must be reachable from the API, and the API from n8n.** Tests are compiled into n8n
+workflows and really executed; their integration calls are redirected back at the API's
+`/mock` endpoints, so the two talk in both directions. This also means the API cannot run more
+than one worker while a test executes - a run opened in one worker is invisible to another.
 
 This repo includes a Render Blueprint:
 
