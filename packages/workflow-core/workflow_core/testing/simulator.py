@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import operator
-import re
 from collections import defaultdict, deque
 from time import perf_counter
 from typing import Any
 
 from workflow_core.analysis.failure_paths import is_failure_edge
 from workflow_core.canonical.models import Edge, Node, NodeType, Workflow
+from workflow_core.conditions import evaluate_condition
 from workflow_core.testing.models import (
     FailureInjection,
     FailureType,
@@ -200,57 +199,6 @@ class WorkflowSimulator:
             # branch rather than reporting a graph we never walked.
             return edges[:1]
         return []
-
-
-#: `a || b` and `a && b`. Splitting these before comparing is not optional: without it the
-#: `==` split below reads `"starter" || plan == "professional"` as the right-hand literal, so
-#: every OR branch in a real workflow evaluates false and the run dead-ends at that gateway.
-_OR = re.compile(r"\|\||\bor\b", re.IGNORECASE)
-_AND = re.compile(r"&&|\band\b", re.IGNORECASE)
-
-
-def evaluate_condition(condition: str, state: dict[str, Any]) -> bool:
-    text = condition.strip()
-    if _OR.search(text):
-        return any(evaluate_condition(part, state) for part in _OR.split(text) if part.strip())
-    if _AND.search(text):
-        return all(evaluate_condition(part, state) for part in _AND.split(text) if part.strip())
-    lower = text.lower()
-    if lower in {"true", "yes", "approved"}:
-        return bool(state.get("approved", True))
-    if lower in {"false", "no", "rejected"}:
-        return not bool(state.get("approved", True))
-    for op_text, op_func in [
-        (">=", operator.ge),
-        ("<=", operator.le),
-        ("==", operator.eq),
-        ("!=", operator.ne),
-        (">", operator.gt),
-        ("<", operator.lt),
-    ]:
-        if op_text in text:
-            left, right = [part.strip() for part in text.split(op_text, 1)]
-            try:
-                return op_func(_value(left, state), _value(right, state))
-            except TypeError:
-                # An unresolved field compared against a number. The branch is simply not
-                # satisfied - it is not a failure of the workflow under test.
-                return False
-    return bool(state.get(_field_name(text), False))
-
-
-def _value(token: str, state: dict[str, Any]) -> Any:
-    token = token.strip().strip("\"'")
-    if re.fullmatch(r"-?\d+(\.\d+)?", token):
-        return float(token) if "." in token else int(token)
-    lowered = token.lower()
-    if lowered in {"true", "false"}:
-        return lowered == "true"
-    return state.get(_field_name(token), token)
-
-
-def _field_name(token: str) -> str:
-    return token.rsplit(".", maxsplit=1)[-1].strip()
 
 
 def _failure_execution(node: Node, state: dict[str, Any], failure: FailureInjection) -> NodeExecution:

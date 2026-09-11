@@ -7,6 +7,7 @@ from workflow_core.canonical.models import (
     Workflow,
 )
 from workflow_core.comparison import VersionComparisonEngine
+from workflow_core.conditions import evaluate_condition, parse_condition
 from workflow_core.costing import CostEstimator, CostOptimizationEngine
 from workflow_core.evaluation.engine import SemanticEvaluationEngine
 from workflow_core.parsers.registry import ParserRegistry, default_parser_registry
@@ -30,6 +31,7 @@ __all__ = [
     "SemanticEvaluationEngine",
     "SourceFormat",
     "SourceType",
+    "evaluate_condition",
     "ValidationEngine",
     "ValidationFinding",
     "VersionComparisonEngine",
@@ -37,4 +39,5 @@ __all__ = [
     "WorkflowSimulator",
     "WorkflowTestRunner",
     "default_parser_registry",
+    "parse_condition",
 ]

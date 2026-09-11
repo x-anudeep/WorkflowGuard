@@ -8,9 +8,10 @@ downstream nodes (approval paths, rejection paths, retry paths) precisely becaus
 are where error handling is most likely to be wrong.
 
 This module walks a path from a start node to the target and solves the edge conditions
-along it for input state that satisfies them. The condition language is the one
-``WorkflowSimulator.evaluate_condition`` already understands - ``field OP literal`` - so
-the solved state is read back exactly as the simulator would read it.
+along it for input state that satisfies them. The condition language is the canonical one
+defined in :mod:`workflow_core.conditions` - ``field OP literal`` - and the solved state is
+keyed with that module's :func:`~workflow_core.conditions.field_name`, so whatever evaluates
+the condition later reads back exactly the value solved for here.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from collections import deque
 from typing import Any
 
 from workflow_core.canonical.models import Edge, Workflow
+from workflow_core.conditions import field_name
 
 _CLAUSE_SPLIT = re.compile(r"\|\||&&")
 _COMPARISON = re.compile(r"^\s*(.+?)\s*(>=|<=|==|!=|>|<)\s*(.+?)\s*$")
@@ -149,12 +151,13 @@ def _value_for(operator: str, value: Any) -> Any:
 
 
 def _state_key(field: str) -> str:
-    """The key the simulator will look up.
+    """The key the evaluator will look up.
 
-    ``evaluate_condition`` resolves ``vendorRecord.found`` by its last segment, so the
-    solved state has to be keyed the same way or it will not be found.
+    Delegates to :func:`workflow_core.conditions.field_name` rather than re-deriving it: this
+    solver and that evaluator have to agree on where a value lands, and two copies of the rule
+    would drift silently.
     """
-    return field.strip().strip("\"'").rsplit(".", maxsplit=1)[-1].strip()
+    return field_name(field.strip().strip("\"'"))
 
 
 def _is_literal(token: str) -> bool:

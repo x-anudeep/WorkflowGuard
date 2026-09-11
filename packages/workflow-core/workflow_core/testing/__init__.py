@@ -20,7 +20,7 @@ from workflow_core.testing.models import (
     WorkflowTestRun,
 )
 from workflow_core.testing.runner import WorkflowTestRunner
-from workflow_core.testing.simulator import WorkflowSimulator
+from workflow_core.testing.simulator import WorkflowSimulator, evaluate_condition
 
 __all__ = [
     "AssertionEngine",
@@ -42,6 +42,7 @@ __all__ = [
     "TestRunStatus",
     "WorkflowAssertion",
     "WorkflowSimulator",
+    "evaluate_condition",
     "WorkflowTest",
     "WorkflowTestRun",
     "WorkflowTestRunner",
