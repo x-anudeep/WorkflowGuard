@@ -123,6 +123,12 @@ class EmittedWorkflow(BaseModel):
     #: workflow whose last node threw while carrying on.
     terminal_nodes: set[str] = Field(default_factory=set)
 
+    #: Edges that could not be emitted because their target does not exist. n8n refuses a whole
+    #: workflow that references a missing node, so these are dropped - but a broken connection
+    #: is a real defect and has to keep failing the run that reaches it, not vanish into a
+    #: warning. Each entry is {"id", "source", "target"}.
+    dropped_edges: list[dict[str, str]] = Field(default_factory=list)
+
     #: The webhook path this workflow listens on. Unique per run: n8n returns 409 on publish
     #: when two workflows claim the same path.
     webhook_path: str = ""

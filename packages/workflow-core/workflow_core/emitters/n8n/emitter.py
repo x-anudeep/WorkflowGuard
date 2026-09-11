@@ -132,6 +132,7 @@ class _Builder:
         self.mocked: set[str] = set()
         self.error_output: dict[str, int] = {}
         self.swallowing: set[str] = set()
+        self.dropped: list[dict[str, str]] = []
 
         self._used_names: set[str] = {TRIGGER_NODE_NAME, INPUT_NODE_NAME}
         self._outgoing: dict[str, list[Edge]] = defaultdict(list)
@@ -176,6 +177,7 @@ class _Builder:
             mocked_nodes=self.mocked,
             error_output_index=self.error_output,
             swallowing_nodes=self.swallowing,
+            dropped_edges=self.dropped,
             terminal_nodes={
                 node.id for node in self.workflow.nodes if not self._outgoing.get(node.id)
             },
@@ -527,6 +529,7 @@ class _Builder:
             self.warnings.append(
                 f"Edge {edge.id!r} points at unknown node {edge.target!r} and was not emitted."
             )
+            self.dropped.append({"id": edge.id, "source": edge.source, "target": edge.target})
             return
         self._connect_raw(source_name, output_index, target)
         self.edge_map.record(source_name, output_index, edge.id, _branch_label(edge))

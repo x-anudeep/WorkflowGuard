@@ -88,6 +88,14 @@ def map_execution(
     ]
     result.token_estimate = _estimate_tokens(result.outputs)
 
+    # A connection to a node that does not exist could not be emitted, so n8n cannot report it.
+    # The run still has to fail when it reaches that edge's source, or a workflow with a broken
+    # connection quietly passes.
+    executed = set(result.execution_order)
+    for dropped in emitted.dropped_edges:
+        if dropped.get("source") in executed:
+            result.failures.append(f"Missing target node {dropped.get('target')}.")
+
     workflow_error = result_data.get("error")
     if workflow_error and workflow_error.get("message"):
         message = workflow_error["message"]

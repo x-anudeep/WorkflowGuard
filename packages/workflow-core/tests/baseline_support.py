@@ -146,6 +146,52 @@ def write_baseline(example_path: str, data: dict[str, Any]) -> Path:
     return path
 
 
+#: Differences between the simulator and n8n that are **accepted**, each with the reason it is
+#: not a defect. The migration's acceptance criterion is that every divergence is explained as a
+#: simulator inaccuracy now corrected or an emitter bug; the ones below are the first kind, and
+#: recording them here is what lets the gate run in CI without the explanation being lost.
+#:
+#: Keyed by field, with a predicate over (recorded, actual) so an *unexpected* change in the
+#: same field still fails. Never widen one of these to silence a failure without establishing
+#: which kind it is.
+ACCEPTED_DIVERGENCES: list[tuple[str, str, Any]] = [
+    (
+        "branch_decisions",
+        "The simulator recorded a branch decision for any labelled edge, including one leaving "
+        "a node with a single output - the n8n parser labels every edge 'main', so every "
+        "n8n-sourced workflow gained spurious decisions. A node with one output decides "
+        "nothing, so dropping these is a correction.",
+        lambda recorded, actual: isinstance(recorded, dict)
+        and isinstance(actual, dict)
+        and all(key not in actual and value == "main" for key, value in recorded.items()),
+    ),
+    (
+        "executed_edges",
+        "The simulator counted an edge pointing at a node that does not exist as executed, "
+        "which inflated edge coverage for a workflow with a broken connection. That edge "
+        "cannot be traversed, so n8n reporting it as uncovered is the honest answer. The "
+        "broken connection still fails the run - see `dropped_edges` in the emitter.",
+        lambda recorded, actual: isinstance(recorded, list)
+        and isinstance(actual, list)
+        and set(actual) < set(recorded)
+        and all("->" in edge for edge in set(recorded) - set(actual)),
+    ),
+]
+
+
+def is_accepted(field: str, recorded: Any, actual: Any) -> str | None:
+    """The reason this difference is accepted, or None if it is a real divergence."""
+    for accepted_field, reason, predicate in ACCEPTED_DIVERGENCES:
+        if accepted_field != field:
+            continue
+        try:
+            if predicate(recorded, actual):
+                return reason
+        except (TypeError, AttributeError):
+            continue
+    return None
+
+
 def _normalise(field: str, value: Any) -> Any:
     """Fold out differences that are wording rather than behaviour.
 
@@ -180,8 +226,9 @@ def diff_snapshots(recorded: dict[str, Any], actual: dict[str, Any]) -> list[str
         for field in sorted(set(before) | set(after)):
             was = _normalise(field, before.get(field))
             now = _normalise(field, after.get(field))
-            if was != now:
-                differences.append(f"{name}.{field}: {was!r} -> {now!r}")
+            if was == now or is_accepted(field, was, now):
+                continue
+            differences.append(f"{name}.{field}: {was!r} -> {now!r}")
     return differences
 
 
