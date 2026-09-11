@@ -146,6 +146,19 @@ def write_baseline(example_path: str, data: dict[str, Any]) -> Path:
     return path
 
 
+def _normalise(field: str, value: Any) -> Any:
+    """Fold out differences that are wording rather than behaviour.
+
+    Failure text is written by whatever produced the failure: the simulator said
+    "Simulated HTTP 429/rate limit.", n8n says "The service is receiving too many requests from
+    you". Which node failed, and how many did, is the behaviour. The sentence is not, and
+    comparing it would bury every real divergence under noise.
+    """
+    if field == "failures" and isinstance(value, list):
+        return sorted(str(item).split(":", 1)[0] for item in value)
+    return value
+
+
 def diff_snapshots(recorded: dict[str, Any], actual: dict[str, Any]) -> list[str]:
     """Human-readable differences between two snapshots of the same example.
 
@@ -162,12 +175,13 @@ def diff_snapshots(recorded: dict[str, Any], actual: dict[str, Any]) -> list[str
         f"{name}: new test, not in baseline"
         for name in sorted(set(actual_tests) - set(recorded_tests))
     ]
-    differences += [
-        f"{name}.{field}: {recorded_tests[name].get(field)!r} -> {actual_tests[name].get(field)!r}"
-        for name in sorted(set(recorded_tests) & set(actual_tests))
-        for field in sorted(set(recorded_tests[name]) | set(actual_tests[name]))
-        if recorded_tests[name].get(field) != actual_tests[name].get(field)
-    ]
+    for name in sorted(set(recorded_tests) & set(actual_tests)):
+        before, after = recorded_tests[name], actual_tests[name]
+        for field in sorted(set(before) | set(after)):
+            was = _normalise(field, before.get(field))
+            now = _normalise(field, after.get(field))
+            if was != now:
+                differences.append(f"{name}.{field}: {was!r} -> {now!r}")
     return differences
 
 

@@ -6,7 +6,9 @@ list of conditions joined by a single combinator. It has no nesting. Our grammar
 rendering strategies:
 
 * **Flat** conditions render as a structured filter, which is preferable because n8n then does
-  its own type coercion and reports a readable condition in the UI.
+  its own type coercion and reports a readable condition in the UI. Boolean comparisons are the
+  exception: loose coercion would let the string "yes" satisfy ``approved == true``, which the
+  canonical grammar does not, so those take the expression path below.
 * **Nested** conditions render as a single boolean JavaScript expression. One structured
   condition whose left value is ``={{ ... }}`` and whose operator is "is true".
 
@@ -118,6 +120,12 @@ def _render_comparison(comparison: Comparison, index: int) -> dict[str, Any] | N
     value_type = _value_type(literal)
     operation = _OPERATIONS.get(operator)
     if operation is None:
+        return None
+    if value_type == "boolean":
+        # Render booleans as a strict expression instead. The structured filter runs with
+        # `typeValidation: "loose"`, which coerces - so `approved == true` would be satisfied by
+        # the string "yes", where the canonical grammar compares resolved values and says it is
+        # not. A test that supplies a deliberately wrong type has to see the branch not taken.
         return None
     return {
         "id": f"c{index}",

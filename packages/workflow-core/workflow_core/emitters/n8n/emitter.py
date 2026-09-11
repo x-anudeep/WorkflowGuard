@@ -64,6 +64,14 @@ _ROW_HEIGHT = 140
 #: canonical condition language assumes after a call.
 _FAILED_FALSE = "={{ $json.error === undefined }}"
 
+#: Approval defaults to granted when unstated and is otherwise left exactly as supplied, so a
+#: downstream condition sees the value the test actually provided.
+_APPROVAL_PASSTHROUGH = (
+    "={{ JSON.stringify({ ...$json, "
+    "approved: $json.approved === undefined ? true : $json.approved, "
+    "approval_requested: true }) }}"
+)
+
 _DEFAULT_REQUEST_TIMEOUT_MS = 2_000
 _MAX_REQUEST_TIMEOUT_MS = 30_000
 
@@ -333,23 +341,14 @@ class _Builder:
                 "type": "n8n-nodes-base.set",
                 "typeVersion": 3.4,
                 "parameters": {
-                    "assignments": {
-                        "assignments": [
-                            {
-                                "id": "approved",
-                                "name": "approved",
-                                "type": "boolean",
-                                "value": "={{ $json.approved === undefined ? true : $json.approved }}",
-                            },
-                            {
-                                "id": "approval_requested",
-                                "name": "approval_requested",
-                                "type": "boolean",
-                                "value": True,
-                            },
-                        ]
-                    },
-                    "includeOtherFields": True,
+                    # Raw mode, not typed assignments. A typed `boolean` assignment makes n8n
+                    # reject an input of "yes" with a type error the canonical workflow never
+                    # imposed, and coercing it instead would be worse still: it would quietly
+                    # turn a deliberately wrong input into a right one, hiding the very
+                    # behaviour an "incorrect input types" test exists to observe. The value is
+                    # passed through exactly as given, and only defaulted when absent.
+                    "mode": "raw",
+                    "jsonOutput": _APPROVAL_PASSTHROUGH,
                     "options": {},
                 },
             }
