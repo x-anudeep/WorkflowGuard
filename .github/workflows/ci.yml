@@ -16,9 +16,56 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e packages/workflow-core -e apps/api[dev]
-      - run: pytest packages/workflow-core/tests apps/api/tests
+      # Offline only. Anything that actually runs a workflow needs n8n and lives in the
+      # integration job below; it is skipped here rather than silently absent.
+      - run: pytest packages/workflow-core/tests apps/api/tests -m "not integration"
       - run: ruff check apps/api packages/workflow-core
       - run: ruff check apps/api packages/workflow-core --select I
+
+  # Everything that executes a workflow. Since the in-process simulator was removed these are
+  # the only tests covering the engine, the emitter, failure injection and fuzz classification,
+  # so a green `backend` job on its own does not mean the test pipeline works.
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      n8n:
+        image: n8nio/n8n:2.38.7
+        ports:
+          - 5678:5678
+        env:
+          N8N_ENCRYPTION_KEY: workflowguard-ci
+          N8N_DIAGNOSTICS_ENABLED: "false"
+          N8N_SECURE_COOKIE: "false"
+          GENERIC_TIMEZONE: UTC
+          # A suite creates hundreds of executions and n8n retains each with full data. Left
+          # unpruned it exhausts the heap partway through and takes the run down with it.
+          EXECUTIONS_DATA_PRUNE: "true"
+          EXECUTIONS_DATA_MAX_AGE: "1"
+          EXECUTIONS_DATA_PRUNE_MAX_COUNT: "200"
+          EXECUTIONS_DATA_SAVE_ON_PROGRESS: "false"
+          EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS: "false"
+          # Bounded rather than generous. Pruning is what stops the heap growing; a large ceiling
+          # only lets n8n crowd out the rest of the machine before pruning matters. Observed at
+          # 7 GB RSS under a full differential run with a 4 GB ceiling -- old-space limits do not
+          # cap buffers or external memory.
+          NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e packages/workflow-core -e apps/api[dev]
+      # n8n's public API needs an owner and a scoped key, normally created by hand in the
+      # editor. This does both over the internal REST API.
+      - name: Bootstrap n8n
+        run: python scripts/bootstrap_n8n.py --base-url http://localhost:5678 >> "$GITHUB_ENV"
+      - name: Run the integration suite
+        env:
+          WORKFLOWGUARD_TEST_N8N_BASE_URL: http://localhost:5678
+          WORKFLOWGUARD_TEST_N8N_API_KEY: ${{ env.N8N_API_KEY }}
+        # The mock endpoints are served in-process by the test session, so no API is needed:
+        # the engine and the mock server have to share one registry object.
+        run: pytest packages/workflow-core/tests apps/api/tests -m integration -q
 
   frontend:
     runs-on: ubuntu-latest

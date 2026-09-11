@@ -38,7 +38,8 @@ def test_generate_tests_persists_editable_system_tests(client: TestClient) -> No
 
 
 @pytest.mark.integration
-def test_create_and_run_custom_test(client: TestClient) -> None:
+def test_create_and_run_custom_test(served_client: TestClient) -> None:
+    client = served_client
     workflow_id = upload_workflow(client)
     create = client.post(
         f"/api/workflows/{workflow_id}/tests",
