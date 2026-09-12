@@ -79,6 +79,16 @@ def _handler_for(registry: MockRegistry) -> type[BaseHTTPRequestHandler]:
             self._send_raw(status, json.dumps(body).encode())
 
         def _send_raw(self, status: int, payload: bytes) -> None:
+            try:
+                self._write(status, payload)
+            except (BrokenPipeError, ConnectionResetError):
+                # Expected, not exceptional: an injected timeout makes n8n abort the request
+                # while this thread is still sleeping out the delay, so the socket is gone by
+                # the time there is anything to write. The registry has already logged the
+                # call, which is what the result actually depends on.
+                pass
+
+        def _write(self, status: int, payload: bytes) -> None:
             self.send_response(status)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(payload)))
