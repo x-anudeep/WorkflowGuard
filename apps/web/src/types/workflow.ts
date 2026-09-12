@@ -304,6 +304,13 @@ export type WorkflowTestRun = {
     external_calls?: unknown[];
     approval_requests?: string[];
     token_estimate?: number;
+    /**
+     * Where the run approximated rather than measured: a node whose body is not modelled for
+     * its source format, an auto-answered approval, a construct the engine cannot express.
+     * Distinct from `failures` -- nothing went wrong, but part of the result is weaker
+     * evidence than it looks.
+     */
+    warnings?: string[];
   };
   assertion_results: AssertionResult[];
   failures: string[];

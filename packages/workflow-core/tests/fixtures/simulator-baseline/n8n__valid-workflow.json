@@ -1,0 +1,305 @@
+{
+  "example": "examples/n8n/valid-workflow.json",
+  "test_count": 12,
+  "tests": {
+    "Branch: webhook to http": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Create Ticket authorization failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [
+        "Create Ticket: Simulated authorization failure."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Create Ticket http_429 failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [
+        "Create Ticket: Simulated HTTP 429/rate limit."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Create Ticket http_500 failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [
+        "Create Ticket: Simulated HTTP 500."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Create Ticket timeout failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [
+        "Create Ticket: Simulated timeout."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Create Ticket unavailable failure": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [
+        "Create Ticket: Simulated dependency unavailable."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "webhook": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "webhook:main:0->http:0"
+      ],
+      "execution_order": [
+        "webhook",
+        "http"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 1,
+    "edge_ids": [
+      "webhook:main:0->http:0"
+    ],
+    "name": "n8n valid workflow",
+    "node_count": 2,
+    "node_ids": [
+      "http",
+      "webhook"
+    ],
+    "source_format": "n8n"
+  }
+}

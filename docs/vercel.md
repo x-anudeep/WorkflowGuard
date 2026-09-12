@@ -304,3 +304,14 @@ GitHub Actions logs is far slower than through a local `vercel deploy`.
    Confirm in devtools that the browser calls `/api/*` on its own origin.
 5. Disable Git auto-deploy on both projects.
 6. Add the five GitHub secrets. Push to `main` and watch the job ordering hold.
+
+## Workflow tests do not run on Vercel
+
+Executing a workflow test needs two things serverless functions cannot provide: a reachable,
+long-lived n8n instance, and a single API process that stays alive for the whole run, because
+n8n calls the `/mock` endpoints back mid-execution and the run's state lives in that process.
+
+So test runs, fuzz campaigns and the repair validation that depends on them are unavailable on a
+Vercel deployment. Upload, parsing, validation, evaluation, cost and comparison are unaffected -
+none of them execute anything. Use the Render blueprint in `render.yaml`, or any host that can
+run the compose stack, for the executing features.

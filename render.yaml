@@ -22,6 +22,27 @@ services:
         value: gpt-4o-mini
       - key: WORKFLOWGUARD_AI_API_KEY
         sync: false
+      # Workflow tests are compiled to n8n workflows and really executed there. An internal
+      # address is the service name plus a generated suffix (`workflowguard-n8n-a1b2:5678`), so
+      # it cannot be written here ahead of the first deploy - take it from n8n's Connect >
+      # Internal panel, or its Service Address, and include the `http://` scheme.
+      - key: WORKFLOWGUARD_N8N_BASE_URL
+        sync: false
+      # Created once in n8n (Settings > n8n API, or scripts/bootstrap_n8n.py) and pasted into
+      # the dashboard. It must carry the workflow:activate scope, or publishing a run fails
+      # with a bare 403 that says nothing about which scope is missing.
+      - key: WORKFLOWGUARD_N8N_API_KEY
+        sync: false
+      # n8n calls this back mid-run to serve the test's mocked integrations, so it has to be an
+      # address reachable *from n8n* - this service's own internal address, not localhost. Same
+      # generated suffix, and note that private traffic to a web service goes to port 10000
+      # regardless of what the process binds locally: `http://workflowguard-api-a1b2:10000/mock`.
+      - key: WORKFLOWGUARD_MOCK_BASE_URL
+        sync: false
+      # The mock registry holds a run's state in the process n8n calls back into, so a second
+      # worker would not see runs opened by the first.
+      - key: WEB_CONCURRENCY
+        value: "1"
 
   - type: web
     name: workflowguard-web
@@ -44,9 +65,111 @@ services:
           type: web
           property: port
 
+  # The execution engine. Private rather than public: nothing outside this blueprint needs to
+  # reach the editor, and an exposed n8n is an exposed set of workflow credentials. To create
+  # the API key, port-forward to it or temporarily set `type: web`.
+  - type: pserv
+    name: workflowguard-n8n
+    runtime: image
+    plan: starter
+    image:
+      url: docker.io/n8nio/n8n:2.38.7
+    envVars:
+      - key: N8N_PORT
+        value: "5678"
+      # Postgres rather than the default SQLite: Render's smaller plans have no persistent
+      # disk, so a file-backed n8n loses every workflow and credential on each deploy.
+      - key: DB_TYPE
+        value: postgresdb
+      # `fromDatabase` exposes connectionString, connectionPoolString, user, password and
+      # database - not host or port. n8n takes its connection in parts and cannot parse a URL,
+      # so these two are pasted once from the database's Connect > Internal details.
+      - key: DB_POSTGRESDB_HOST
+        sync: false
+      - key: DB_POSTGRESDB_PORT
+        sync: false
+      - key: DB_POSTGRESDB_DATABASE
+        fromDatabase:
+          name: workflowguard-n8n-db
+          property: database
+      - key: DB_POSTGRESDB_USER
+        fromDatabase:
+          name: workflowguard-n8n-db
+          property: user
+      - key: DB_POSTGRESDB_PASSWORD
+        fromDatabase:
+          name: workflowguard-n8n-db
+          property: password
+      # Encrypts stored credentials. Losing it makes every stored credential unreadable, so it
+      # is set once in the dashboard and never regenerated.
+      - key: N8N_ENCRYPTION_KEY
+        sync: false
+      - key: N8N_DIAGNOSTICS_ENABLED
+        value: "false"
+      - key: GENERIC_TIMEZONE
+        value: UTC
+      # Uploaded JavaScript runs in the separate runner below, not in this process.
+      - key: N8N_RUNNERS_MODE
+        value: external
+      - key: N8N_RUNNERS_AUTH_TOKEN
+        sync: false
+      - key: N8N_RUNNERS_BROKER_LISTEN_ADDRESS
+        value: 0.0.0.0
+      - key: N8N_RUNNERS_BROKER_PORT
+        value: "5679"
+      - key: N8N_RUNNERS_TASK_TIMEOUT
+        value: "10"
+      # A suite creates hundreds of executions and n8n retains each with its full data. Left
+      # unpruned it exhausts the heap partway through a run and takes the run down with it.
+      - key: EXECUTIONS_DATA_PRUNE
+        value: "true"
+      - key: EXECUTIONS_DATA_MAX_AGE
+        value: "24"
+      - key: EXECUTIONS_DATA_PRUNE_MAX_COUNT
+        value: "500"
+      - key: EXECUTIONS_DATA_SAVE_ON_PROGRESS
+        value: "false"
+      - key: EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS
+        value: "false"
+      # Bounded rather than generous: pruning is what stops the heap growing, and a large
+      # ceiling only lets n8n crowd out the rest of the instance before pruning matters.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=2048
+
+  # Runs the JavaScript inside uploaded workflows, in its own process. A snippet that hangs,
+  # crashes or allocates takes this service down rather than the engine every test is running
+  # in. It reaches nothing but the broker above.
+  - type: pserv
+    name: workflowguard-n8n-runner
+    runtime: image
+    plan: starter
+    image:
+      url: docker.io/n8nio/runners:2.38.7
+    envVars:
+      # n8n's internal address again, on the broker port rather than the editor port.
+      - key: N8N_RUNNERS_TASK_BROKER_URI
+        sync: false
+      - key: N8N_RUNNERS_AUTH_TOKEN
+        sync: false
+      - key: N8N_RUNNERS_TASK_TIMEOUT
+        value: "10"
+      - key: N8N_RUNNERS_MAX_OLD_SPACE_SIZE
+        value: "256"
+      - key: N8N_RUNNERS_MAX_CONCURRENCY
+        value: "2"
+
 databases:
   - name: workflowguard-db
     plan: free
     databaseName: workflowguard
     user: workflowguard
+    postgresMajorVersion: "16"
+
+  # n8n keeps its own workflows, executions and credentials here. Separate from the application
+  # database on purpose: two products sharing one schema is a migration conflict waiting to
+  # happen, and n8n's execution tables churn hard enough to be worth isolating.
+  - name: workflowguard-n8n-db
+    plan: free
+    databaseName: n8n
+    user: n8n
     postgresMajorVersion: "16"

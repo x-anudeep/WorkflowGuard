@@ -1,0 +1,151 @@
+{
+  "example": "examples/json/invalid-connection.json",
+  "test_count": 6,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->missing_node"
+      ],
+      "execution_order": [
+        "start"
+      ],
+      "failures": [
+        "Missing target node missing_node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->missing_node"
+      ],
+      "execution_order": [
+        "start"
+      ],
+      "failures": [
+        "Missing target node missing_node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->missing_node"
+      ],
+      "execution_order": [
+        "start"
+      ],
+      "failures": [
+        "Missing target node missing_node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->missing_node"
+      ],
+      "execution_order": [
+        "start"
+      ],
+      "failures": [
+        "Missing target node missing_node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->missing_node"
+      ],
+      "execution_order": [
+        "start"
+      ],
+      "failures": [
+        "Missing target node missing_node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->missing_node"
+      ],
+      "execution_order": [
+        "start"
+      ],
+      "failures": [
+        "Missing target node missing_node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    }
+  },
+  "workflow": {
+    "edge_count": 1,
+    "edge_ids": [
+      "start->missing_node"
+    ],
+    "name": "Workflow with invalid connection",
+    "node_count": 2,
+    "node_ids": [
+      "end",
+      "start"
+    ],
+    "source_format": "generic_json"
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "example": "examples/bpmn/orphan-node.bpmn",
+  "test_count": 6,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "EndEvent_1"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "EndEvent_1"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "EndEvent_1"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "EndEvent_1"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "EndEvent_1"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 75.0,
+        "overall": 93.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1",
+        "Flow_2"
+      ],
+      "execution_order": [
+        "StartEvent_1",
+        "Task_1",
+        "EndEvent_1"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 2,
+    "edge_ids": [
+      "Flow_1",
+      "Flow_2"
+    ],
+    "name": "BPMN orphan",
+    "node_count": 4,
+    "node_ids": [
+      "EndEvent_1",
+      "StartEvent_1",
+      "Task_1",
+      "Task_Orphan"
+    ],
+    "source_format": "bpmn"
+  }
+}

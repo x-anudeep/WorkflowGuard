@@ -1,0 +1,151 @@
+{
+  "example": "examples/bpmn/invalid-connection.bpmn",
+  "test_count": 6,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1"
+      ],
+      "execution_order": [
+        "StartEvent_1"
+      ],
+      "failures": [
+        "Missing target node Missing_Task."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1"
+      ],
+      "execution_order": [
+        "StartEvent_1"
+      ],
+      "failures": [
+        "Missing target node Missing_Task."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1"
+      ],
+      "execution_order": [
+        "StartEvent_1"
+      ],
+      "failures": [
+        "Missing target node Missing_Task."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1"
+      ],
+      "execution_order": [
+        "StartEvent_1"
+      ],
+      "failures": [
+        "Missing target node Missing_Task."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1"
+      ],
+      "execution_order": [
+        "StartEvent_1"
+      ],
+      "failures": [
+        "Missing target node Missing_Task."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 50.0,
+        "overall": 87.5,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "Flow_1"
+      ],
+      "execution_order": [
+        "StartEvent_1"
+      ],
+      "failures": [
+        "Missing target node Missing_Task."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    }
+  },
+  "workflow": {
+    "edge_count": 1,
+    "edge_ids": [
+      "Flow_1"
+    ],
+    "name": "BPMN invalid connection",
+    "node_count": 2,
+    "node_ids": [
+      "EndEvent_1",
+      "StartEvent_1"
+    ],
+    "source_format": "bpmn"
+  }
+}

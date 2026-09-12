@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 from workflow_core.canonical.models import SourceType
 from workflow_core.comparison import VersionComparisonEngine
 from workflow_core.costing import CostEstimator, CostOptimizationEngine, CostScenario
+from workflow_core.emitters.n8n import N8nEmitter
 from workflow_core.evaluation import SemanticEvaluationEngine
+from workflow_core.execution import N8nClient, N8nExecutionEngine, serve_mocks
 from workflow_core.fuzzing import DEFAULT_MAX_CASES, DEFAULT_SEED, FuzzEngine
 from workflow_core.parsers.errors import WorkflowParseError
 from workflow_core.parsers.registry import default_parser_registry
@@ -19,7 +23,17 @@ from workflow_core.validation.engine import ValidationEngine
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="workflowguard", description="WorkflowGuard workflow QA CLI")
+    parser = argparse.ArgumentParser(
+        prog="workflowguard",
+        description=(
+            "WorkflowGuard workflow QA CLI. `test`, `fuzz`, `check` and `report` execute the "
+            "workflow in n8n, so they need WORKFLOWGUARD_N8N_BASE_URL to point at a reachable "
+            "instance and WORKFLOWGUARD_N8N_API_KEY to hold a key with the workflow:activate "
+            "scope. Integration calls are redirected to mock endpoints this command serves "
+            "itself, so nothing reaches a real service. `validate`, `evaluate`, `cost` and "
+            "`compare` execute nothing and need no engine."
+        ),
+    )
     subcommands = parser.add_subparsers(dest="command", required=True)
     for command in ("validate", "evaluate", "fuzz", "test", "cost", "check", "report"):
         command_parser = subcommands.add_parser(command)
@@ -100,7 +114,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if result.overall_score < 70 else 0
 
     if args.command == "fuzz":
-        report = FuzzEngine().run(workflow, seed=args.seed, max_cases=args.max_cases)
+        with _engine(propagate_failures=True) as engine:
+            report = FuzzEngine(engine).run(workflow, seed=args.seed, max_cases=args.max_cases)
         payload = {
             "robustness_score": report.robustness_score,
             "exercised_cases": report.exercised_cases,
@@ -136,11 +151,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     generation = DeterministicTestGenerator().generate(workflow, None)
-    runner = WorkflowTestRunner()
     runs = []
-    for test in generation.tests:
-        run = runner.run(workflow, test, all_tests=generation.tests, prior_runs=runs)
-        runs.append(run)
+    with _engine() as engine:
+        runner = WorkflowTestRunner(engine)
+        for test in generation.tests:
+            run = runner.run(workflow, test, all_tests=generation.tests, prior_runs=runs)
+            runs.append(run)
     failed = [run for run in runs if run.status != "PASSED"]
     coverage = runs[-1].coverage if runs else None
     payload = {
@@ -211,6 +227,32 @@ def main(argv: list[str] | None = None) -> int:
 
 def _has_errors(findings) -> bool:
     return any(str(finding.severity) in {"ERROR", "CRITICAL"} for finding in findings)
+
+
+@contextmanager
+def _engine(*, propagate_failures: bool = False):
+    """The execution engine, with its own mock endpoints, for the duration of the block.
+
+    The CLI is the CI entry point, so it reads the same n8n variables the API does. It cannot
+    reuse the API's mock endpoints, though: those live in a running FastAPI process, and there
+    is not one here. Pointing emitted workflows at a URL with nothing behind it is how every
+    integration call quietly failed to connect.
+
+    Running tests now needs a reachable n8n. There is no in-process fallback, because reporting
+    invented coverage to a pipeline is worse than failing loudly.
+    """
+    with serve_mocks() as (registry, mock_base_url):
+        yield N8nExecutionEngine(
+            N8nClient(
+                os.environ.get("WORKFLOWGUARD_N8N_BASE_URL", "http://localhost:5678"),
+                os.environ.get("WORKFLOWGUARD_N8N_API_KEY"),
+            ),
+            emitter=N8nEmitter(
+                mock_base_url=os.environ.get("WORKFLOWGUARD_MOCK_BASE_URL") or mock_base_url
+            ),
+            mocks=registry,
+            propagate_failures=propagate_failures,
+        )
 
 
 def _emit(as_json: bool, payload: dict) -> None:

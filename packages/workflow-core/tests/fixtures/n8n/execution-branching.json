@@ -1,0 +1,309 @@
+{
+  "id": "1",
+  "finished": true,
+  "mode": "webhook",
+  "retryOf": null,
+  "retrySuccessId": null,
+  "status": "success",
+  "startedAt": "2026-09-11T18:09:40.127Z",
+  "stoppedAt": "2026-09-11T18:09:40.175Z",
+  "workflowId": "7tPlPsEqfdWcLdzY",
+  "waitTill": null,
+  "storedAt": "db",
+  "jsonSizeBytes": 3598,
+  "workflowVersionId": "de784440-133c-418f-952d-5c5baf805de9",
+  "data": {
+    "version": 1,
+    "startData": {},
+    "resultData": {
+      "runData": {
+        "Webhook": [
+          {
+            "startTime": 1789150180145,
+            "executionIndex": 0,
+            "source": [],
+            "hints": [],
+            "executionTime": 1,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [
+                  {
+                    "json": {
+                      "headers": {
+                        "accept-encoding": "identity",
+                        "content-length": "16",
+                        "host": "localhost:5678",
+                        "user-agent": "Python-urllib/3.14",
+                        "content-type": "application/json",
+                        "x-n8n-api-key": "",
+                        "connection": "close"
+                      },
+                      "params": {},
+                      "query": {},
+                      "body": {
+                        "amount": 5000
+                      },
+                      "webhookUrl": "http://localhost:5678/webhook/wg-spike",
+                      "executionMode": "production"
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "IF Amount": [
+          {
+            "startTime": 1789150180147,
+            "executionIndex": 1,
+            "source": [
+              {
+                "previousNode": "Webhook",
+                "previousNodeOutput": 0,
+                "previousNodeRun": 0
+              }
+            ],
+            "hints": [],
+            "executionTime": 26,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [
+                  {
+                    "json": {
+                      "headers": {
+                        "accept-encoding": "identity",
+                        "content-length": "16",
+                        "host": "localhost:5678",
+                        "user-agent": "Python-urllib/3.14",
+                        "content-type": "application/json",
+                        "x-n8n-api-key": "",
+                        "connection": "close"
+                      },
+                      "params": {},
+                      "query": {},
+                      "body": {
+                        "amount": 5000
+                      },
+                      "webhookUrl": "http://localhost:5678/webhook/wg-spike",
+                      "executionMode": "production"
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ],
+                []
+              ]
+            }
+          }
+        ],
+        "High Path": [
+          {
+            "startTime": 1789150180173,
+            "executionIndex": 2,
+            "source": [
+              {
+                "previousNode": "IF Amount",
+                "previousNodeOutput": 0,
+                "previousNodeRun": 0
+              }
+            ],
+            "hints": [],
+            "executionTime": 2,
+            "executionStatus": "success",
+            "data": {
+              "main": [
+                [
+                  {
+                    "json": {
+                      "route": "high"
+                    },
+                    "pairedItem": {
+                      "item": 0
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "lastNodeExecuted": "High Path"
+    },
+    "executionData": {
+      "contextData": {},
+      "nodeExecutionStack": [],
+      "metadata": {},
+      "waitingExecution": {},
+      "waitingExecutionSource": {},
+      "runtimeData": {
+        "version": 1,
+        "establishedAt": 1789150180122,
+        "source": "webhook",
+        "triggerNode": {
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook"
+        },
+        "redaction": {
+          "version": 2,
+          "production": false,
+          "manual": false
+        }
+      }
+    },
+    "resumeToken": "22d0a1e8fad3972079786b3460b34d5ffa5ca808db765971ac56308a16206a65"
+  },
+  "workflowData": {
+    "id": "7tPlPsEqfdWcLdzY",
+    "name": "wg-spike-branching",
+    "nodes": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "multipleMethods": false,
+          "httpMethod": "POST",
+          "path": "wg-spike",
+          "authentication": "none",
+          "responseMode": "lastNode",
+          "responseData": "firstEntryJson",
+          "options": {}
+        },
+        "webhookId": "9132d196-96cf-485f-9146-148b8558226e"
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "IF Amount",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $json.body.amount }}",
+                "rightValue": 1000,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": false,
+          "options": {}
+        }
+      },
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "name": "High Path",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          440,
+          -100
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "a1",
+                "name": "route",
+                "value": "high",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      },
+      {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "name": "Low Path",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          440,
+          100
+        ],
+        "parameters": {
+          "mode": "manual",
+          "duplicateItem": false,
+          "assignments": {
+            "assignments": [
+              {
+                "id": "a2",
+                "name": "route",
+                "value": "low",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "IF Amount",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF Amount": {
+        "main": [
+          [
+            {
+              "node": "High Path",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Low Path",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "nodeGroups": []
+  },
+  "customData": {}
+}

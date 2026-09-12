@@ -153,6 +153,11 @@ class SimulationResult(BaseModel):
     failures: list[str] = Field(default_factory=list)
     duration_ms: int = 0
     token_estimate: int = 0
+    #: Where the execution was an approximation rather than a measurement - a construct the
+    #: engine could not express faithfully, a node body not yet modelled, an auto-answered
+    #: approval. Carried on the result so a report can say so instead of implying the run
+    #: exercised something it did not.
+    warnings: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(use_enum_values=True)
 

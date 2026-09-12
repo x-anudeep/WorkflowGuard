@@ -1,0 +1,186 @@
+{
+  "example": "examples/n8n/invalid-connection.json",
+  "test_count": 7,
+  "tests": {
+    "Branch: trigger to Missing Node": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {
+        "trigger": "main"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "trigger:main:0->Missing Node:0"
+      ],
+      "execution_order": [
+        "trigger"
+      ],
+      "failures": [
+        "Missing target node Missing Node."
+      ],
+      "retries": {},
+      "status": "FAILED"
+    }
+  },
+  "workflow": {
+    "edge_count": 1,
+    "edge_ids": [
+      "trigger:main:0->Missing Node:0"
+    ],
+    "name": "n8n invalid connection",
+    "node_count": 1,
+    "node_ids": [
+      "trigger"
+    ],
+    "source_format": "n8n"
+  }
+}

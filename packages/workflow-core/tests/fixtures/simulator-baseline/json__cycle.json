@@ -1,0 +1,486 @@
+{
+  "example": "examples/json/cycle.json",
+  "test_count": 8,
+  "tests": {
+    "Branch: review to end": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "review->end",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Branch: review to fix": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == false"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "fix->review",
+        "review->fix",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review",
+        "fix",
+        "review"
+      ],
+      "failures": [
+        "Simulation stopped after reaching the maximum step limit."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Duplicate event": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "review->end",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == true"
+      },
+      "coverage": {
+        "branch": 50.0,
+        "edge": 50.0,
+        "node": 75.0,
+        "overall": 68.75,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "review->end",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "review->end",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "review->end",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [
+        "review"
+      ],
+      "branch_decisions": {
+        "review": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "review->end",
+        "start->review"
+      ],
+      "execution_order": [
+        "start",
+        "review",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 4,
+    "edge_ids": [
+      "fix->review",
+      "review->end",
+      "review->fix",
+      "start->review"
+    ],
+    "name": "Workflow with cycle",
+    "node_count": 4,
+    "node_ids": [
+      "end",
+      "fix",
+      "review",
+      "start"
+    ],
+    "source_format": "generic_json"
+  }
+}

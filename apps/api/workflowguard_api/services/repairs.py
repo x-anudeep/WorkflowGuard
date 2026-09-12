@@ -16,6 +16,7 @@ from workflowguard_api.ai.repair import RepairProvider, repair_provider_from_set
 from workflowguard_api.core.config import get_settings
 from workflowguard_api.models.db import RepairProposalRecord, RepairValidationResultRecord
 from workflowguard_api.services.costs import CostService
+from workflowguard_api.services.execution import build_engine
 from workflowguard_api.services.workflows import WorkflowService
 
 
@@ -135,7 +136,7 @@ class RepairService:
             validation_findings=validation.findings,
         )
         tests = DeterministicTestGenerator().generate(candidate).tests[:8]
-        runner = WorkflowTestRunner()
+        runner = WorkflowTestRunner(build_engine())
         runs = []
         for test in tests:
             runs.append(runner.run(candidate, test, all_tests=tests, prior_runs=runs))

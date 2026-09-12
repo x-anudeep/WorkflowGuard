@@ -5,6 +5,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from workflowguard_api.api.mocks import router as mock_router
 from workflowguard_api.api.workflows import router
 from workflowguard_api.core.config import get_settings
 from workflowguard_api.core.logging import configure_logging
@@ -45,6 +46,9 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(router, prefix=settings.api_prefix)
+    # Mounted at the root, not under the API prefix: n8n calls these directly during a test
+    # run and they are not part of the public API surface.
+    app.include_router(mock_router)
     return app
 
 

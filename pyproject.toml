@@ -36,3 +36,8 @@ workflow-core = { workspace = true }
 
 [tool.vercel]
 entrypoint = "index:app"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: needs a live n8n instance; skipped unless WORKFLOWGUARD_TEST_N8N_BASE_URL is set and reachable",
+]

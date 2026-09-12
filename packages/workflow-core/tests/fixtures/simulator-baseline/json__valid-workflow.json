@@ -1,0 +1,365 @@
+{
+  "example": "examples/json/valid-workflow.json",
+  "test_count": 12,
+  "tests": {
+    "Branch: approval to notify": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Duplicate event": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1"
+      ],
+      "execution_order": [
+        "start",
+        "approval"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Notify requester authorization failure": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify"
+      ],
+      "failures": [
+        "Notify requester: Simulated authorization failure."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Notify requester http_429 failure": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify"
+      ],
+      "failures": [
+        "Notify requester: Simulated HTTP 429/rate limit."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Notify requester http_500 failure": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify"
+      ],
+      "failures": [
+        "Notify requester: Simulated HTTP 500."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Notify requester timeout failure": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify"
+      ],
+      "failures": [
+        "Notify requester: Simulated timeout."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Notify requester unavailable failure": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify"
+      ],
+      "failures": [
+        "Notify requester: Simulated dependency unavailable."
+      ],
+      "retries": {},
+      "status": "ERROR"
+    },
+    "Null input fields": {
+      "approval_requests": [
+        "approval"
+      ],
+      "branch_decisions": {
+        "approval": "approved == true"
+      },
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "e1",
+        "e2",
+        "e3"
+      ],
+      "execution_order": [
+        "start",
+        "approval",
+        "notify",
+        "end"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 3,
+    "edge_ids": [
+      "e1",
+      "e2",
+      "e3"
+    ],
+    "name": "Valid approval workflow",
+    "node_count": 4,
+    "node_ids": [
+      "approval",
+      "end",
+      "notify",
+      "start"
+    ],
+    "source_format": "generic_json"
+  }
+}

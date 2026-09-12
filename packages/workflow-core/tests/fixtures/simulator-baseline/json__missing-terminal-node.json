@@ -1,0 +1,145 @@
+{
+  "example": "examples/json/missing-terminal-node.json",
+  "test_count": 6,
+  "tests": {
+    "Duplicate event": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task"
+      ],
+      "execution_order": [
+        "start",
+        "task"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Happy path": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task"
+      ],
+      "execution_order": [
+        "start",
+        "task"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Incorrect input types": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task"
+      ],
+      "execution_order": [
+        "start",
+        "task"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Malformed input": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task"
+      ],
+      "execution_order": [
+        "start",
+        "task"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Missing input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task"
+      ],
+      "execution_order": [
+        "start",
+        "task"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    },
+    "Null input fields": {
+      "approval_requests": [],
+      "branch_decisions": {},
+      "coverage": {
+        "branch": 100.0,
+        "edge": 100.0,
+        "node": 100.0,
+        "overall": 100.0,
+        "requirement": 100.0
+      },
+      "executed_edges": [
+        "start->task"
+      ],
+      "execution_order": [
+        "start",
+        "task"
+      ],
+      "failures": [],
+      "retries": {},
+      "status": "PASSED"
+    }
+  },
+  "workflow": {
+    "edge_count": 1,
+    "edge_ids": [
+      "start->task"
+    ],
+    "name": "Workflow missing terminal",
+    "node_count": 2,
+    "node_ids": [
+      "start",
+      "task"
+    ],
+    "source_format": "generic_json"
+  }
+}
