@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from workflow_core.analysis.reachability import reaching_input, satisfying_state
+from collections.abc import Sequence
+
+from workflow_core.analysis.reachability import path_to, reaching_input, satisfying_state
 from workflow_core.canonical.models import Edge, NodeType, Workflow
 from workflow_core.evaluation.models import RequirementSpec
+from workflow_core.testing.mock_synthesis import synthesise_mocks
 from workflow_core.testing.models import (
     AssertionType,
     FailureInjection,
@@ -34,7 +37,9 @@ class DeterministicTestGenerator:
                 description="Executes the primary workflow path with mocked integrations.",
                 generated_by=TestGeneratedBy.SYSTEM,
                 input_data=happy_input,
-                mocked_integrations=default_mocks(workflow),
+                mocked_integrations=default_mocks(
+                    workflow, target_edges=_primary_path_edges(workflow)
+                ),
                 expected_path=primary_path,
                 assertions=[*_path_assertions(primary_path), WorkflowAssertion(type=AssertionType.TERMINATED_SUCCESSFULLY)],
                 tags=["happy_path", "deterministic"],
@@ -43,7 +48,8 @@ class DeterministicTestGenerator:
                 rationale="Covers the main path through the canonical graph.",
             )
         )
-        tests.extend(_branch_tests(workflow))
+        branch_tests, warnings = _branch_tests(workflow)
+        tests.extend(branch_tests)
         tests.extend(_edge_case_tests(workflow, requirement_spec))
         tests.extend(_failure_tests(workflow))
         tests.extend(_requirement_tests(workflow, requirement_spec))
@@ -54,6 +60,7 @@ class DeterministicTestGenerator:
             tests=list(deduped.values()),
             generated_by=TestGeneratedBy.SYSTEM,
             rationale="Deterministic tests were generated from graph structure, node categories, and stored requirements.",
+            warnings=warnings,
         )
 
 
@@ -112,19 +119,35 @@ def _path_assertions(path: list[str]) -> list[WorkflowAssertion]:
     return [WorkflowAssertion(type=AssertionType.NODE_EXECUTED, target=node_id) for node_id in path]
 
 
-def default_mocks(workflow: Workflow) -> list[MockIntegration]:
-    return [
-        MockIntegration(node_id=node.id, response={"ok": True, "node": node.id}, status_code=200)
-        for node in workflow.nodes
-        if node.type in {NodeType.EXTERNAL_API, NodeType.DATABASE, NodeType.LLM, NodeType.EMAIL}
-    ]
+def default_mocks(
+    workflow: Workflow,
+    *,
+    target_edge: Edge | None = None,
+    target_edges: Sequence[Edge] = (),
+) -> list[MockIntegration]:
+    """Mocked responses carrying the fields the workflow downstream actually reads.
+
+    A bland `{"ok": true}` was enough while nothing consumed it. Executing code made it a
+    problem: a node computing `input.price > 100` against a response with no `price` always
+    computes false, so the branch test written for the other side can never pass.
+    """
+    mocks, _warnings = synthesise_mocks(
+        workflow, target_edge=target_edge, target_edges=target_edges
+    )
+    return mocks
 
 
-def _branch_tests(workflow: Workflow) -> list[WorkflowTest]:
+def _branch_tests(workflow: Workflow) -> tuple[list[WorkflowTest], list[str]]:
     tests: list[WorkflowTest] = []
+    warnings: list[str] = []
     for edge in workflow.edges:
         if not edge.condition and not edge.label:
             continue
+        # Solved per branch: the `isHigh == true` test needs a mocked price above the
+        # threshold and the `== false` test one below it. One shared response cannot do both,
+        # which is why one of every complementary pair used to be unpassable.
+        mocks, branch_warnings = synthesise_mocks(workflow, target_edge=edge)
+        warnings.extend(branch_warnings)
         tests.append(
             WorkflowTest(
                 workflow_id=workflow.id,
@@ -134,7 +157,11 @@ def _branch_tests(workflow: Workflow) -> list[WorkflowTest]:
                 # Reaching this edge means satisfying every condition between the start and
                 # it, not just its own - otherwise an earlier branch diverts the run.
                 input_data=reaching_input(workflow, edge.target, _input_for_condition(edge.condition or edge.label or "")),
-                mocked_integrations=default_mocks(workflow),
+                mocked_integrations=mocks,
+                # A branch nothing can steer produces a test that fails for a reason which says
+                # nothing about the workflow. Recording it disabled keeps the gap visible
+                # without training people to ignore a red suite.
+                enabled=not branch_warnings,
                 expected_path=[edge.source, edge.target],
                 assertions=[
                     WorkflowAssertion(type=AssertionType.NODE_EXECUTED, target=edge.source),
@@ -145,10 +172,14 @@ def _branch_tests(workflow: Workflow) -> list[WorkflowTest]:
                 # Alternate-path coverage. Useful, but a workflow whose secondary branch is
                 # untested is not in the same class as one that fails its stated requirements.
                 importance=TestImportance.MEDIUM,
-                rationale="Every conditional branch should be exercised by at least one test.",
+                rationale=(
+                    branch_warnings[0]
+                    if branch_warnings
+                    else "Every conditional branch should be exercised by at least one test."
+                ),
             )
         )
-    return tests
+    return tests, warnings
 
 
 def _edge_case_tests(workflow: Workflow, requirement_spec: RequirementSpec | None) -> list[WorkflowTest]:
@@ -192,6 +223,13 @@ def _failure_tests(workflow: Workflow) -> list[WorkflowTest]:
     ]
     injectable = [node for node in workflow.nodes if node.type in {NodeType.EXTERNAL_API, NodeType.DATABASE, NodeType.LLM}]
     for node in injectable:
+        # Injecting a failure into a node the run never reaches proves nothing: the fault does
+        # not fire, no error is recorded, and the test fails on its own ERROR_OCCURRED
+        # assertion while saying nothing about the workflow. Steer the mocks - and the input -
+        # down the path that arrives at this node.
+        path = path_to(workflow, node.id) or []
+        reaching = reaching_input(workflow, node.id, {"approved": True, "amount": 100})
+        mocks = default_mocks(workflow, target_edges=path)
         for failure_type, tag in failure_matrix:
             if node.type != NodeType.LLM and failure_type == FailureType.MALFORMED_OUTPUT:
                 continue
@@ -201,8 +239,8 @@ def _failure_tests(workflow: Workflow) -> list[WorkflowTest]:
                     name=f"{node.name} {tag} failure",
                     description=f"Injects {tag} at {node.name} and verifies failure handling.",
                     generated_by=TestGeneratedBy.SYSTEM,
-                    input_data={"approved": True, "amount": 100},
-                    mocked_integrations=default_mocks(workflow),
+                    input_data=reaching,
+                    mocked_integrations=mocks,
                     failure_injections=[FailureInjection(node_id=node.id, failure_type=failure_type)],
                     assertions=[WorkflowAssertion(type=AssertionType.ERROR_OCCURRED, expected=True)],
                     expected_error=str(failure_type),
