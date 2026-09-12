@@ -105,7 +105,13 @@ class QualityGateService:
             .scalars()
             .first()
         )
-        return float((run.coverage or {}).get("overall_coverage") or 0) if run else None
+        if run is None:
+            return None
+        # An empty coverage blob means the run never executed - the engine was unreachable.
+        # Reading that as 0% would fail the gate for an infrastructure problem and call it a
+        # workflow defect; `None` means "not measured", which the gate already understands.
+        measured = (run.coverage or {}).get("overall_coverage")
+        return float(measured) if measured is not None else None
 
     def _critical_test_failures(self, workflow_id: uuid.UUID) -> tuple[int, int]:
         """Failing high-importance tests, and how many there are in total.

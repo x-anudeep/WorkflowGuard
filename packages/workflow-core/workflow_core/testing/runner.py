@@ -65,9 +65,10 @@ class WorkflowTestRunner:
                 failures=[f"Execution engine unavailable: {exc}"],
                 duration_ms=0,
             )
-            run.coverage = self.coverage.calculate(
-                workflow, [*(prior_runs or []), run], all_tests or [test], requirement_spec
-            )
+            # Deliberately no coverage. Nothing was executed, so any number here would be a
+            # measurement of a run that did not happen - and coverage feeds both the quality
+            # gate and the TEST_COVERAGE evaluation dimension, so a workflow would be scored
+            # and gated on a fiction because the engine happened to be down.
             return run
 
         assertion_results = self.assertions.evaluate(test, simulation)

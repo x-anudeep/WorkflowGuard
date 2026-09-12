@@ -57,3 +57,28 @@ def test_importance_distinguishes_tests_again() -> None:
 
     branch = [t for t in tests if "branch" in t.tags]
     assert all(t.importance == TestImportance.MEDIUM for t in branch)
+
+
+def test_a_run_that_never_executed_does_not_report_coverage() -> None:
+    """An unreachable engine must not be scored as a workflow with poor coverage.
+
+    Coverage feeds both the quality gate and the TEST_COVERAGE evaluation dimension, so a
+    number here would gate and score a workflow on a run that did not happen.
+    """
+    from workflow_core.canonical.models import Node, NodeType, SourceFormat, SourceType, Workflow
+    from workflow_core.execution import N8nClient, N8nExecutionEngine
+    from workflow_core.testing import WorkflowTest, WorkflowTestRunner
+
+    workflow = Workflow(
+        name="Unreachable engine",
+        source_format=SourceFormat.GENERIC_JSON,
+        source_type=SourceType.HUMAN,
+        nodes=[Node(id="start", name="Start", type=NodeType.TRIGGER)],
+    )
+    # Nothing is listening, which is what a deployment without an engine looks like.
+    engine = N8nExecutionEngine(N8nClient("http://127.0.0.1:59999"))
+    run = WorkflowTestRunner(engine).run(workflow, WorkflowTest(name="t", description="d"))
+
+    assert str(run.status) == "ERROR"
+    assert run.coverage is None
+    assert "Execution engine unavailable" in run.failures[0]
