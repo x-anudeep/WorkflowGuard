@@ -27,6 +27,7 @@ from workflowguard_api.models.db import (
     EvaluationRun,
     RequirementSpecificationRecord,
     WorkflowRecord,
+    WorkflowTestRunRecord,
 )
 from workflowguard_api.services.attachments import AttachmentService
 from workflowguard_api.services.fuzzing import FuzzService
@@ -73,6 +74,7 @@ class EvaluationService:
         # keep the deterministic path exactly as before.
         matches, match_metadata = self._match_requirements(spec, workflow, use_ai=use_ai)
         ai_metadata.update(match_metadata)
+        test_coverage = self._latest_test_coverage(record.id, version.id)
         result = self.engine.evaluate(
             workflow,
             structural_score=round(validation_run.structural_quality_score),
@@ -80,6 +82,7 @@ class EvaluationService:
             requirement_spec=spec,
             fuzz_report=fuzz_report,
             requirement_matches=matches,
+            test_coverage=test_coverage,
         )
         result.ai_metadata.update(ai_metadata)
         result.ai_provider = ai_provider_name
@@ -192,6 +195,31 @@ class EvaluationService:
         total = self.db.scalar(select(func.count(EvaluationRun.id))) or 0
         avg = self.db.scalar(select(func.avg(EvaluationRun.overall_score))) or 0
         return {"total_evaluation_runs": int(total), "average_overall_score": round(float(avg), 2)}
+
+    def _latest_test_coverage(self, workflow_id: uuid.UUID, version_id: uuid.UUID) -> float | None:
+        """The most recent test run's overall coverage for this exact version, if any.
+
+        Scoped to `version_id`, not just `workflow_id`: a coverage figure measured against an
+        older version of the workflow is not evidence about this one, so it is treated as no
+        measurement at all rather than a stale one.
+        """
+        run = (
+            self.db.execute(
+                select(WorkflowTestRunRecord)
+                .where(
+                    WorkflowTestRunRecord.workflow_id == workflow_id,
+                    WorkflowTestRunRecord.version_id == version_id,
+                )
+                .order_by(desc(WorkflowTestRunRecord.created_at))
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+        if run is None or not run.coverage:
+            return None
+        overall = run.coverage.get("overall_coverage")
+        return float(overall) if overall is not None else None
 
     def _match_requirements(
         self,

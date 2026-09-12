@@ -63,15 +63,17 @@ DEFAULT_RULE_BUDGET = 25
 #: from statically declared error handling. Only applied when a fuzz report exists.
 FUZZ_BLEND_WEIGHT = 0.40
 
-# Restored to their pre-hallucination values so they still sum to 1.0. Simply deleting
-# the 0.15 hallucination weight would have left them summing to 0.85 and quietly cut
-# every overall score by 15%.
 DIMENSION_WEIGHTS = {
-    EvaluationDimension.STRUCTURAL: 0.25,
-    EvaluationDimension.PROMPT_ALIGNMENT: 0.30,
+    EvaluationDimension.STRUCTURAL: 0.20,
+    EvaluationDimension.PROMPT_ALIGNMENT: 0.25,
     EvaluationDimension.RELIABILITY: 0.15,
-    EvaluationDimension.SECURITY: 0.20,
+    EvaluationDimension.SECURITY: 0.15,
     EvaluationDimension.MAINTAINABILITY: 0.10,
+    # Only scored once a test run exists for this version (see dimension_scores' test_coverage
+    # argument) -- overall_score renormalises over whichever dimensions are actually present, so
+    # an untested workflow is scored purely on the other five rather than being marked down for a
+    # measurement that was never taken.
+    EvaluationDimension.TEST_COVERAGE: 0.15,
 }
 
 
@@ -81,6 +83,7 @@ def dimension_scores(
     validation_findings: list[ValidationFinding],
     evaluation_findings: list[EvaluationFinding],
     fuzz_report: FuzzReport | None = None,
+    test_coverage: float | None = None,
 ) -> list[DimensionScore]:
     scores = [
         DimensionScore(
@@ -90,6 +93,18 @@ def dimension_scores(
             calculation={"validation_findings": _severity_counts(validation_findings)},
         )
     ]
+    if test_coverage is not None:
+        scores.append(
+            DimensionScore(
+                dimension=EvaluationDimension.TEST_COVERAGE,
+                score=round(max(0.0, min(100.0, test_coverage))),
+                explanation=(
+                    "Measured from the latest test run for this version: the average of node, "
+                    "edge, branch, and requirement coverage actually exercised."
+                ),
+                calculation={"overall_coverage": test_coverage},
+            )
+        )
     for dimension in [
         EvaluationDimension.PROMPT_ALIGNMENT,
         EvaluationDimension.RELIABILITY,
@@ -203,9 +218,21 @@ def _blend_reliability(
 
 
 def overall_score(scores: list[DimensionScore]) -> int:
+    """Weighted average over whichever dimensions actually have a score.
+
+    Renormalises rather than treating a missing dimension as a 0: TEST_COVERAGE is only present
+    once a test run exists for this version, and an untested workflow should be scored on the
+    other dimensions, not marked down for a measurement that was never taken. This is the same
+    reasoning that restored the other weights to sum to 1.0 when hallucination was removed --
+    a dimension silently defaulting to 0 quietly cuts every score by its weight's share.
+    """
     by_dimension = {EvaluationDimension(score.dimension): score.score for score in scores}
-    weighted = sum(by_dimension.get(dimension, 0) * weight for dimension, weight in DIMENSION_WEIGHTS.items())
-    return round(weighted)
+    applicable = {dimension: weight for dimension, weight in DIMENSION_WEIGHTS.items() if dimension in by_dimension}
+    if not applicable:
+        return 0
+    total_weight = sum(applicable.values())
+    weighted = sum(by_dimension[dimension] * weight for dimension, weight in applicable.items())
+    return round(weighted / total_weight)
 
 
 def _severity_counts(findings: list[ValidationFinding] | list[EvaluationFinding]) -> dict[str, int]:

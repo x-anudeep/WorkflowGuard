@@ -28,6 +28,7 @@ class SemanticEvaluationEngine:
         requirement_spec: RequirementSpec | None = None,
         fuzz_report: FuzzReport | None = None,
         requirement_matches: list[RequirementMatch] | None = None,
+        test_coverage: float | None = None,
     ) -> EvaluationResult:
         spec = requirement_spec
         if spec is None and workflow.source_prompt:
@@ -46,7 +47,9 @@ class SemanticEvaluationEngine:
         findings.extend(self.maintainability.analyze(workflow))
         if fuzz_report is not None:
             findings.extend(fuzz_report.findings)
-        scores = dimension_scores(workflow, structural_score, validation_findings, findings, fuzz_report)
+        scores = dimension_scores(
+            workflow, structural_score, validation_findings, findings, fuzz_report, test_coverage
+        )
 
         limitations = [
             "Semantic evaluation combines deterministic graph analysis with optional AI-assisted requirement extraction.",
@@ -62,6 +65,10 @@ class SemanticEvaluationEngine:
             )
         else:
             limitations.extend(fuzz_report.limitations)
+        if test_coverage is None:
+            limitations.append(
+                "No test run exists for this version, so test coverage could not be measured."
+            )
 
         return EvaluationResult(
             workflow_id=workflow.id,
