@@ -67,6 +67,81 @@ class TestOutboundCallsCannotEscape:
         assert "real.example.com" in mapped.parameters["jsonBody"]
 
 
+class TestExpressionsCannotNest:
+    """The invariant that would have caught this without needing a workflow to trip over it.
+
+    Source formats have `{{ name }}` templates of their own. Embedding one inside an n8n
+    `={{ ... }}` expression nests braces, n8n fails to parse the node, and *every* test of that
+    workflow fails with "invalid syntax" - a whole-workflow outage from one templated URL.
+    """
+
+    @staticmethod
+    def _nested(value) -> bool:
+        """Whether an emitted expression contains a `{{` inside another `{{ }}`."""
+        text = str(value)
+        if not text.startswith("={{"):
+            return False
+        return "{{" in text[3:]
+
+    def _assert_no_nesting(self, node):
+        for key, value in (node.get("parameters") or {}).items():
+            if isinstance(value, str):
+                assert not self._nested(value), (node.get("name"), key, value[:160])
+            elif isinstance(value, dict):
+                for inner in value.values():
+                    if isinstance(inner, str):
+                        assert not self._nested(inner), (node.get("name"), key, inner[:160])
+
+    @pytest.mark.parametrize(
+        "configuration",
+        [
+            {"method": "GET", "url": "https://api.example.com/w?appid={{apiKey}}"},
+            {"method": "POST", "url": "https://x.test", "body": {"q": "{{location}}"}},
+            {"method": "POST", "url": "https://x.test", "body": {"deep": {"q": "{{location}}"}}},
+            {"method": "POST", "url": "https://x.test", "body": {"list": ["{{a}}", "b"]}},
+        ],
+    )
+    def test_a_templated_http_value_never_nests(self, configuration):
+        node = Node(
+            id="n", name="N", type=NodeType.EXTERNAL_API, subtype="Http", configuration=configuration
+        )
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        assert "{{" not in mapped.parameters["jsonBody"][3:]
+
+    def test_a_templated_prompt_never_nests(self):
+        node = _qubi("Agent", agentId="a", userMessage="Report {{temperature}} and {{description}}")
+        mapped = map_node(node, SourceFormat.QUBI.value, MOCK)
+        assert "{{" not in mapped.parameters["jsonBody"][3:]
+
+    def test_a_template_resolves_to_the_variable_rather_than_being_escaped(self):
+        """Escaping would fix the parse and lose the meaning; a template names a variable."""
+        node = _qubi("Http", method="GET", url="https://x.test/?k={{apiKey}}")
+        body = map_node(node, SourceFormat.QUBI.value, MOCK).parameters["jsonBody"]
+        assert '$json["apiKey"]' in body
+
+    def test_an_unresolved_variable_does_not_interpolate_undefined(self):
+        """"undefined" spliced into a URL is wrong and very hard to spot afterwards."""
+        node = _qubi("Http", method="GET", url="https://x.test/?k={{missing}}")
+        assert '?? ""' in map_node(node, SourceFormat.QUBI.value, MOCK).parameters["jsonBody"]
+
+    @pytest.mark.skipif(not QUBI_SAMPLES, reason="no local qubi samples")
+    def test_no_emitted_node_in_any_real_workflow_nests_an_expression(self):
+        registry = default_parser_registry()
+        emitter = N8nEmitter(mock_base_url="http://mock.test/mock")
+        checked = 0
+        for path in QUBI_SAMPLES:
+            try:
+                workflow = registry.parse(path.name, path.read_bytes()).workflow
+            except Exception:  # noqa: BLE001 - not every sample is a qubi export
+                continue
+            if str(workflow.source_format) != SourceFormat.QUBI.value:
+                continue
+            checked += 1
+            for node in emitter.emit(workflow, run_token="t").workflow_json["nodes"]:
+                self._assert_no_nesting(node)
+        assert checked, "no qubi samples parsed"
+
+
 class TestRequestFidelity:
     def test_method_is_taken_from_the_node(self):
         mapped = map_node(_qubi("Http", method="delete"), SourceFormat.QUBI.value, MOCK)

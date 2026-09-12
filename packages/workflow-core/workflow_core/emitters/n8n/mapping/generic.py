@@ -12,6 +12,7 @@ import json
 from typing import Any
 
 from workflow_core.canonical.models import Node, NodeType
+from workflow_core.emitters.n8n.mapping.expressions import js_object
 from workflow_core.emitters.n8n.mapping.models import MappedNode, request_timeout_ms
 
 __all__ = ["map_generic_node"]
@@ -47,7 +48,7 @@ def _integration(node: Node, mock_url: str) -> MappedNode:
         "url": mock_url,
         "sendBody": True,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({}, $json, " + json.dumps(payload) + ")) }}",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $json, " + js_object(payload) + ")) }}",
         "options": {
             "response": {"response": {"neverError": False}},
             "timeout": request_timeout_ms(node),
@@ -58,7 +59,7 @@ def _integration(node: Node, mock_url: str) -> MappedNode:
         parameters["sendHeaders"] = True
         parameters["specifyHeaders"] = "keypair"
         parameters["headerParameters"] = {
-            "parameters": [{"name": str(k), "value": str(v)} for k, v in headers.items()]
+            "parameters": [{"name": str(key), "value": str(value)} for key, value in headers.items()]
         }
     return MappedNode(
         type="n8n-nodes-base.httpRequest", type_version=4.2, parameters=parameters, mocked=True

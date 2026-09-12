@@ -38,6 +38,7 @@ import re
 from typing import Any
 
 from workflow_core.canonical.models import Node
+from workflow_core.emitters.n8n.mapping.expressions import js_object
 from workflow_core.emitters.n8n.mapping.models import MappedNode, request_timeout_ms
 
 __all__ = ["map_qubi_node"]
@@ -75,7 +76,10 @@ def _http(node: Node, mock_url: str) -> MappedNode:
         parameters["sendHeaders"] = True
         parameters["specifyHeaders"] = "keypair"
         parameters["headerParameters"] = {
-            "parameters": [{"name": str(k), "value": str(v)} for k, v in headers.items()]
+            "parameters": [
+                {"name": str(key), "value": _header_value(value)}
+                for key, value in headers.items()
+            ]
         }
     return MappedNode(
         type="n8n-nodes-base.httpRequest",
@@ -330,7 +334,9 @@ def _json_body(body: Any, *, intended_url: str) -> str:
     """An n8n expression producing the request body, merged with the current item.
 
     The item is merged in so a downstream condition still sees the state that reached this node,
-    which is how the canonical flat-state model behaves.
+    which is how the canonical flat-state model behaves. Values go through `js_value` rather
+    than `json.dumps`, because a qubi value may itself contain `{{ }}` - embedding one raw
+    nests braces inside the expression and the node fails to parse.
     """
     payload: dict[str, Any] = {}
     if isinstance(body, dict):
@@ -339,11 +345,21 @@ def _json_body(body: Any, *, intended_url: str) -> str:
         payload["body"] = body
     if intended_url:
         payload["__wg_intended_url"] = intended_url
-    return "={{ JSON.stringify(Object.assign({}, $json, " + json.dumps(payload) + ")) }}"
+    return "={{ JSON.stringify(Object.assign({}, $json, " + js_object(payload) + ")) }}"
+
+
+def _header_value(value: Any) -> str:
+    """A header value. n8n evaluates a `=`-prefixed field, so a template is safe here."""
+    text = str(value)
+    return "=" + text if "{{" in text else text
 
 
 def _as_expression(value: Any) -> Any:
-    """Qubi templates use `{{ var }}`; n8n needs a leading `=` to evaluate one."""
+    """Qubi templates use `{{ var }}`; n8n needs a leading `=` to evaluate one.
+
+    Safe only in a field n8n evaluates directly. A template nested inside another expression
+    breaks the parse - see `expressions.js_value` for that case.
+    """
     if isinstance(value, str) and "{{" in value:
         return "=" + value
     return value
