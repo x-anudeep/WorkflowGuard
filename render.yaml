@@ -22,18 +22,23 @@ services:
         value: gpt-4o-mini
       - key: WORKFLOWGUARD_AI_API_KEY
         sync: false
-      # Workflow tests are compiled to n8n workflows and really executed there.
+      # Workflow tests are compiled to n8n workflows and really executed there. An internal
+      # address is the service name plus a generated suffix (`workflowguard-n8n-a1b2:5678`), so
+      # it cannot be written here ahead of the first deploy - take it from n8n's Connect >
+      # Internal panel, or its Service Address, and include the `http://` scheme.
       - key: WORKFLOWGUARD_N8N_BASE_URL
-        value: http://workflowguard-n8n:5678
+        sync: false
       # Created once in n8n (Settings > n8n API, or scripts/bootstrap_n8n.py) and pasted into
       # the dashboard. It must carry the workflow:activate scope, or publishing a run fails
       # with a bare 403 that says nothing about which scope is missing.
       - key: WORKFLOWGUARD_N8N_API_KEY
         sync: false
-      # n8n calls this back mid-run to serve the test's mocked integrations, so it has to be
-      # an address reachable *from n8n* - this service's own internal address, not localhost.
+      # n8n calls this back mid-run to serve the test's mocked integrations, so it has to be an
+      # address reachable *from n8n* - this service's own internal address, not localhost. Same
+      # generated suffix, and note that private traffic to a web service goes to port 10000
+      # regardless of what the process binds locally: `http://workflowguard-api-a1b2:10000/mock`.
       - key: WORKFLOWGUARD_MOCK_BASE_URL
-        value: http://workflowguard-api:8000/mock
+        sync: false
       # The mock registry holds a run's state in the process n8n calls back into, so a second
       # worker would not see runs opened by the first.
       - key: WEB_CONCURRENCY
@@ -76,14 +81,13 @@ services:
       # disk, so a file-backed n8n loses every workflow and credential on each deploy.
       - key: DB_TYPE
         value: postgresdb
+      # `fromDatabase` exposes connectionString, connectionPoolString, user, password and
+      # database - not host or port. n8n takes its connection in parts and cannot parse a URL,
+      # so these two are pasted once from the database's Connect > Internal details.
       - key: DB_POSTGRESDB_HOST
-        fromDatabase:
-          name: workflowguard-n8n-db
-          property: host
+        sync: false
       - key: DB_POSTGRESDB_PORT
-        fromDatabase:
-          name: workflowguard-n8n-db
-          property: port
+        sync: false
       - key: DB_POSTGRESDB_DATABASE
         fromDatabase:
           name: workflowguard-n8n-db
@@ -142,8 +146,9 @@ services:
     image:
       url: docker.io/n8nio/runners:2.38.7
     envVars:
+      # n8n's internal address again, on the broker port rather than the editor port.
       - key: N8N_RUNNERS_TASK_BROKER_URI
-        value: http://workflowguard-n8n:5679
+        sync: false
       - key: N8N_RUNNERS_AUTH_TOKEN
         sync: false
       - key: N8N_RUNNERS_TASK_TIMEOUT
