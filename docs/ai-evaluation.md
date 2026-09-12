@@ -79,7 +79,7 @@ repair, and fuzz-case generation. Set `WORKFLOWGUARD_AI_MODEL` to a Groq model i
 Structured output is requested as `json_schema` with `strict` on models that support it and
 falls back to `json_object` otherwise. Model output is never trusted: proposed fuzz cases are
 schema-validated, then unknown node ids, unknown failure types, and unbounded occurrence counts
-are dropped before anything reaches the simulator.
+are dropped before anything reaches the execution engine.
 
 AI cases are added to the deterministic corpus rather than replacing it. The deterministic
 generator provides systematic coverage that a model will not reliably enumerate; the model

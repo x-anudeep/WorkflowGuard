@@ -14,7 +14,7 @@ Part 5 completes the demo-quality platform shell: quality gates, global reposito
 
 ## Architecture
 
-- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, simulator, assertions, coverage, cost estimation, version comparison, repair patches, scoring, and CLI.
+- `packages/workflow-core`: canonical workflow models, parser plugins, graph construction, validation rules, requirement extraction, semantic evaluation, generated tests, the n8n emitter and execution engine, assertions, coverage, cost estimation, version comparison, repair patches, scoring, and CLI.
 - `apps/api`: FastAPI, SQLAlchemy, Alembic, PostgreSQL persistence, upload/evaluation/test/cost/repair handling, REST API, provider-neutral AI adapters, and the mock endpoints emitted workflows call instead of their real integrations.
 - `apps/web`: Next.js, TypeScript, Tailwind CSS, React Flow dashboard, upload, validation, evaluation, testing, cost, compare, and repair UI.
 - `examples`: valid and intentionally broken BPMN, generic JSON, and n8n workflows.
@@ -99,6 +99,23 @@ uvicorn workflowguard_api.main:app --reload
 
 Set `WORKFLOWGUARD_DATABASE_URL` if you are not using the default local PostgreSQL connection.
 
+**Running tests needs n8n.** Upload, validation, evaluation, cost and comparison work without
+it; anything that *executes* a workflow -- test runs, fuzz campaigns, repair validation -- needs
+a reachable instance:
+
+```bash
+docker compose up -d n8n
+python scripts/bootstrap_n8n.py --base-url http://localhost:5678   # prints N8N_API_KEY=...
+export WORKFLOWGUARD_N8N_BASE_URL=http://localhost:5678
+export WORKFLOWGUARD_N8N_API_KEY=...
+export WORKFLOWGUARD_MOCK_BASE_URL=http://localhost:8000/mock
+```
+
+The key needs the `workflow:activate` scope, or publishing fails with a bare `403`.
+`WORKFLOWGUARD_MOCK_BASE_URL` must be an address **n8n can reach**: n8n calls it back during a
+run to serve the mocked integrations. That also means the API cannot run more than one worker
+while a test executes -- the run's state lives in the process n8n calls back into.
+
 ## Local Frontend
 
 ```bash
@@ -112,18 +129,39 @@ see [docs/vercel.md](docs/vercel.md).
 
 ## Tests
 
+The suite is split by whether a test executes a workflow.
+
 ```bash
 pip install -e packages/workflow-core -e apps/api[dev]
-pytest packages/workflow-core/tests apps/api/tests
+pytest packages/workflow-core/tests apps/api/tests -m "not integration"
 npm install
 npm run web:test
 npm run web:lint
 npm run web:build
 ```
 
+Tests that really run a workflow are marked `integration` and skip unless an engine is
+configured. They cover the emitter, the execution engine, failure injection and fuzz
+classification, so **a green offline run on its own does not mean the pipeline works**:
+
+```bash
+docker compose up -d n8n
+eval "$(python scripts/bootstrap_n8n.py --base-url http://localhost:5678)"
+WORKFLOWGUARD_TEST_N8N_BASE_URL=http://localhost:5678 \
+WORKFLOWGUARD_TEST_N8N_API_KEY="$N8N_API_KEY" \
+  pytest packages/workflow-core/tests apps/api/tests -m integration
+```
+
+The mock endpoints are served by the test session itself, so no running API is needed: the
+engine and the mock server have to share one registry object.
+
 ## CLI
 
-Install the core package locally, then use the `workflowguard` command in CI or local scripts:
+Install the core package locally, then use the `workflowguard` command in CI or local scripts.
+`test`, `fuzz`, `check` and `report` execute the workflow and need `WORKFLOWGUARD_N8N_BASE_URL`
+and `WORKFLOWGUARD_N8N_API_KEY`; `validate`, `evaluate`, `cost` and `compare` execute nothing and
+need no engine. The CLI serves its own mock endpoints for the duration of a run, so integration
+calls never leave the machine.
 
 ```bash
 pip install -e packages/workflow-core
@@ -213,7 +251,26 @@ Generated suites include:
 - prompt-injection defensive tests for LLM workflows
 - requirement-linked tests when a source prompt or requirement spec is available
 
-The simulator never executes uploaded workflow code. It walks the canonical graph with controlled node adapters and mocks external systems by default. Test runs store execution order, branch decisions, external calls, retries, failures, duration, token estimates, assertion results, and coverage.
+Tests execute for real. The canonical workflow is compiled into an n8n workflow, published,
+triggered per test, and the execution is read back and translated into canonical node and edge
+ids -- so assertions and coverage mean what they always did.
+
+Two things are deliberately withheld. **An integration call never reaches its declared
+destination**: every external API, database, email and LLM node is redirected to WorkflowGuard's
+own mock endpoints, which serve the test's mocked integrations and turn its failure injections
+into genuine 429s, 500s, timeouts and malformed responses. **Uploaded Python and BPMN scripts are
+not executed.** Uploaded *JavaScript* is, in a contained runner, because a branch downstream of a
+code node that never ran takes an arbitrary path and the run then reports a confident verdict
+about something it never evaluated. See the Security Posture section of
+[docs/architecture.md](docs/architecture.md).
+
+Because failures are real rather than modelled, a node configured with retries genuinely retries:
+a single injected timeout is survived and the run passes. To exhaust the retries, inject on each
+attempt.
+
+Test runs store execution order, branch decisions, external calls, retries, failures, duration,
+token estimates, assertion results, coverage, and any warnings about parts of the run that were
+approximated rather than measured.
 
 Coverage is workflow coverage, not source-code coverage:
 
@@ -332,10 +389,25 @@ Upload `broken-ai-invoice-workflow.json` as AI-generated and paste the requireme
 - `WORKFLOWGUARD_AI_API_KEY`
 - `WORKFLOWGUARD_AI_MODEL`
 - `WORKFLOWGUARD_AI_TIMEOUT_SECONDS`
+- `WORKFLOWGUARD_N8N_BASE_URL`
+- `WORKFLOWGUARD_N8N_API_KEY` (needs the `workflow:activate` scope)
+- `WORKFLOWGUARD_N8N_RUN_TIMEOUT_SECONDS`
+- `WORKFLOWGUARD_MOCK_BASE_URL` (must be reachable **from n8n**)
+- `WORKFLOWGUARD_TEST_N8N_BASE_URL` / `WORKFLOWGUARD_TEST_N8N_API_KEY` (integration tests only)
 
 ## Current Limitations
 
-- Simulation is intentionally safe and adapter-based; it does not execute native workflow engine code or call real external services.
+- Tests execute in n8n and cannot reach real services: every integration call is redirected to
+  WorkflowGuard's own mock endpoints, so an emitted workflow carries no credentials and a passing
+  test says nothing about whether real credentials work.
+- Uploaded JavaScript is executed, in an external task runner on a network with no route off the
+  host, under a task timeout and resource limits. Uploaded Python and BPMN scripts are not
+  executed, and the run says so.
+- Running a test requires a reachable n8n. There is no in-process fallback: reporting invented
+  coverage to a pipeline would be worse than failing loudly.
+- BPMN executes as a control-flow skeleton. The BPMN parser records an element's type but
+  extracts no parameters, so gateways and branching are genuinely exercised while the work at
+  each node is mocked.
 - Generated tests are reviewable starting points, not trusted truth.
 - Cost estimates are planning estimates, not provider bills.
 - Repair patches operate on canonical workflow versions; original uploaded source files are preserved but not rewritten.

@@ -59,7 +59,7 @@ Reaching an error edge is not by itself evidence of handling. An edge counts onl
 leaves the failed node or its condition reads that step's result, and the branch must run
 real recovery work - an error path straight to `End` hides a failure rather than handling it.
 
-The simulator used for fuzzing runs with `propagate_failures=True`, because workflows commonly
+The engine used for fuzzing runs with `propagate_failures=True`, because workflows commonly
 handle errors downstream: the call runs, then the next condition inspects `result.success`. A
 run that stops at the failing node cannot see that handling at all. Stored test runs keep the
 strict behaviour.

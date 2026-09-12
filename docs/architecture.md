@@ -212,7 +212,7 @@ The Next.js UI is a developer-tool surface:
 
 ## Security Posture
 
-Part 1 validates extensions and size, parses XML with entity resolution and network access disabled, uses safe JSON decoding, and never executes uploaded content. Secrets are kept out of source and documented via `.env.example`.
+Part 1 validates extensions and size, parses XML with entity resolution and network access disabled, and uses safe JSON decoding. Uploaded content is not executed during parsing or validation; what happens when a *test* runs it is set out under Security Posture below. Secrets are kept out of source and documented via `.env.example`.
 
 Part 2 adds static security findings for embedded credentials, secret-like values, unsafe HTTP endpoints, missing auth configuration, and potential LLM sensitive-data exposure. These checks are explicitly best-effort and do not claim complete security coverage.
 
