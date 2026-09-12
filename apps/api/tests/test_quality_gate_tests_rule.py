@@ -7,9 +7,11 @@ deterministic generator marked 86 of 93 tests HIGH - so it was really "no test m
 
 from pathlib import Path
 
-from workflow_core.canonical.models import SourceType
+from workflow_core.canonical.models import Node, NodeType, SourceFormat, SourceType, Workflow
+from workflow_core.execution import N8nClient, N8nExecutionEngine
 from workflow_core.parsers.registry import default_parser_registry
 from workflow_core.quality import QualityGateConfig, QualityGateEngine
+from workflow_core.testing import WorkflowTest, WorkflowTestRunner
 from workflow_core.testing.generator import DeterministicTestGenerator
 from workflow_core.testing.models import TestImportance
 
@@ -65,10 +67,6 @@ def test_a_run_that_never_executed_does_not_report_coverage() -> None:
     Coverage feeds both the quality gate and the TEST_COVERAGE evaluation dimension, so a
     number here would gate and score a workflow on a run that did not happen.
     """
-    from workflow_core.canonical.models import Node, NodeType, SourceFormat, SourceType, Workflow
-    from workflow_core.execution import N8nClient, N8nExecutionEngine
-    from workflow_core.testing import WorkflowTest, WorkflowTestRunner
-
     workflow = Workflow(
         name="Unreachable engine",
         source_format=SourceFormat.GENERIC_JSON,
