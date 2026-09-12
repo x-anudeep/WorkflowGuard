@@ -151,9 +151,13 @@ def write_baseline(example_path: str, data: dict[str, Any]) -> Path:
 #: simulator inaccuracy now corrected or an emitter bug; the ones below are the first kind, and
 #: recording them here is what lets the gate run in CI without the explanation being lost.
 #:
-#: Keyed by field, with a predicate over (recorded, actual) so an *unexpected* change in the
-#: same field still fails. Never widen one of these to silence a failure without establishing
-#: which kind it is.
+#: Keyed by field, with a predicate over (recorded, actual, recorded_run, actual_run). The run
+#: dicts are the *raw* snapshots, so a rule can require corroborating evidence elsewhere in the
+#: same test rather than accepting a field change on its own - "status went PASSED -> ERROR" is
+#: far too broad to accept, while "status went PASSED -> ERROR *and* the engine reported a type
+#: conversion error" is exactly one known difference.
+#:
+#: Never widen one of these to silence a failure without establishing which kind it is.
 ACCEPTED_DIVERGENCES: list[tuple[str, str, Any]] = [
     (
         "branch_decisions",
@@ -161,9 +165,28 @@ ACCEPTED_DIVERGENCES: list[tuple[str, str, Any]] = [
         "a node with a single output - the n8n parser labels every edge 'main', so every "
         "n8n-sourced workflow gained spurious decisions. A node with one output decides "
         "nothing, so dropping these is a correction.",
-        lambda recorded, actual: isinstance(recorded, dict)
+        lambda recorded, actual, _recorded_run, _actual_run: isinstance(recorded, dict)
         and isinstance(actual, dict)
         and all(key not in actual and value == "main" for key, value in recorded.items()),
+    ),
+    (
+        "status",
+        "A numeric comparison against a value that is not a number now fails the run instead of "
+        "silently matching no branch. The simulator caught the type error and treated the branch "
+        "as unsatisfied - 'not a failure of the workflow under test' - so a workflow that would "
+        "genuinely break on that input was reported as passing. n8n raises a conversion error, "
+        "which is both what a production run would do and what a test called 'Incorrect input "
+        "types' exists to discover.",
+        lambda recorded, actual, recorded_run, actual_run: recorded == "PASSED"
+        and actual == "ERROR"
+        and _has_conversion_error(actual_run)
+        and not (recorded_run.get("failures") or []),
+    ),
+    (
+        "failures",
+        "The same type conversion error: the simulator recorded no failure where n8n reports one.",
+        lambda recorded, actual, recorded_run, actual_run: not recorded
+        and _has_conversion_error(actual_run),
     ),
     (
         "executed_edges",
@@ -171,7 +194,7 @@ ACCEPTED_DIVERGENCES: list[tuple[str, str, Any]] = [
         "which inflated edge coverage for a workflow with a broken connection. That edge "
         "cannot be traversed, so n8n reporting it as uncovered is the honest answer. The "
         "broken connection still fails the run - see `dropped_edges` in the emitter.",
-        lambda recorded, actual: isinstance(recorded, list)
+        lambda recorded, actual, _recorded_run, _actual_run: isinstance(recorded, list)
         and isinstance(actual, list)
         and set(actual) < set(recorded)
         and all("->" in edge for edge in set(recorded) - set(actual)),
@@ -179,13 +202,25 @@ ACCEPTED_DIVERGENCES: list[tuple[str, str, Any]] = [
 ]
 
 
-def is_accepted(field: str, recorded: Any, actual: Any) -> str | None:
+def _has_conversion_error(run: dict[str, Any]) -> bool:
+    return any("conversion error" in str(f).lower() for f in (run.get("failures") or []))
+
+
+def is_accepted(
+    field: str,
+    recorded: Any,
+    actual: Any,
+    recorded_run: dict[str, Any] | None = None,
+    actual_run: dict[str, Any] | None = None,
+) -> str | None:
     """The reason this difference is accepted, or None if it is a real divergence."""
+    recorded_run = recorded_run or {}
+    actual_run = actual_run or {}
     for accepted_field, reason, predicate in ACCEPTED_DIVERGENCES:
         if accepted_field != field:
             continue
         try:
-            if predicate(recorded, actual):
+            if predicate(recorded, actual, recorded_run, actual_run):
                 return reason
         except (TypeError, AttributeError):
             continue
@@ -226,7 +261,7 @@ def diff_snapshots(recorded: dict[str, Any], actual: dict[str, Any]) -> list[str
         for field in sorted(set(before) | set(after)):
             was = _normalise(field, before.get(field))
             now = _normalise(field, after.get(field))
-            if was == now or is_accepted(field, was, now):
+            if was == now or is_accepted(field, was, now, before, after):
                 continue
             differences.append(f"{name}.{field}: {was!r} -> {now!r}")
     return differences
